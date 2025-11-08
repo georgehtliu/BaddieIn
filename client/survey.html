@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Find Your Corporate Match!</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="survey-container">
+        <h1>Find Your Corporate Match!</h1>
+        <p class="subtitle">Help us personalize your networking experience</p>
+        
+        <form class="survey-form" id="survey-form">
+            <div class="question-group">
+                <label for="synergy">What's your ideal partner's 'Synergy Level'?</label>
+                <select id="synergy" name="synergy">
+                    <option value="high">High</option>
+                    <option value="very-high">Very High</option>
+                    <option value="unbelievable">Unbelievable</option>
+                </select>
+            </div>
+            
+            <div class="question-group">
+                <label>How important is 'Thought Leadership'?</label>
+                <div class="radio-group">
+                    <input type="radio" id="critical" name="leadership" value="critical">
+                    <label for="critical">Critical</label>
+                    
+                    <input type="radio" id="essential" name="leadership" value="essential">
+                    <label for="essential">Essential</label>
+                    
+                    <input type="radio" id="non-negotiable" name="leadership" value="non-negotiable">
+                    <label for="non-negotiable">Non-Negotiable</label>
+                </div>
+            </div>
+            
+            <div class="question-group">
+                <label for="disruption">Preferred 'Disruption' Level?</label>
+                <select id="disruption" name="disruption">
+                    <option value="mild">Mild Disruption</option>
+                    <option value="moderate">Moderate Disruption</option>
+                    <option value="extreme">Extreme Disruption</option>
+                    <option value="paradigm-shift">Paradigm Shift</option>
+                </select>
+            </div>
+            
+            <div class="question-group">
+                <label>Do you value 'Synergy' in a professional relationship?</label>
+                <div class="radio-group">
+                    <input type="radio" id="yes" name="synergy-value" value="yes">
+                    <label for="yes">Yes</label>
+                    
+                    <input type="radio" id="absolutely" name="synergy-value" value="absolutely">
+                    <label for="absolutely">Absolutely</label>
+                    
+                    <input type="radio" id="synergy-is-life" name="synergy-value" value="synergy-is-life">
+                    <label for="synergy-is-life">Synergy is Life</label>
+                </div>
+            </div>
+            
+            <a href="index.html" class="submit-button">Find Matches</a>
+        </form>
+    </div>
+    <script>
+        // Prevent form submission
+        document.getElementById('survey-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+        });
+    </script>
+</body>
+</html>
+

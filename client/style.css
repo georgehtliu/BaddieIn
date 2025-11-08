@@ -1,0 +1,906 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    overflow-x: visible;
+    overflow-y: auto;
+}
+
+/* Survey Page Styles */
+.survey-container {
+    background: white;
+    border-radius: 20px;
+    padding: 40px;
+    max-width: 600px;
+    width: 100%;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.survey-container h1 {
+    color: #0077b5;
+    text-align: center;
+    margin-bottom: 10px;
+    font-size: 2.5em;
+}
+
+.subtitle {
+    text-align: center;
+    color: #666;
+    margin-bottom: 30px;
+    font-size: 1.1em;
+}
+
+.survey-form {
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+}
+
+.question-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.question-group label {
+    font-weight: 600;
+    color: #333;
+    font-size: 1.1em;
+}
+
+.question-group select {
+    padding: 12px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 1em;
+    background: white;
+    cursor: pointer;
+    transition: border-color 0.3s;
+}
+
+.question-group select:hover {
+    border-color: #0077b5;
+}
+
+.question-group select:focus {
+    outline: none;
+    border-color: #0077b5;
+}
+
+.radio-group {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.radio-group input[type="radio"] {
+    margin-right: 5px;
+    cursor: pointer;
+}
+
+.radio-group label {
+    font-weight: normal;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+}
+
+.submit-button {
+    background: #0077b5;
+    color: white;
+    padding: 15px 30px;
+    border: none;
+    border-radius: 50px;
+    font-size: 1.2em;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    margin-top: 10px;
+    display: block;
+}
+
+.submit-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(0, 119, 181, 0.3);
+}
+
+.submit-button:active {
+    transform: translateY(0);
+}
+
+/* Pack Opening App Styles */
+.app-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 30px;
+    max-width: 1200px;
+    width: 100%;
+    padding: 20px;
+    overflow: visible;
+}
+
+.app-title {
+    color: white;
+    text-align: center;
+    font-size: 2.5em;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    margin-bottom: 10px;
+}
+
+.pack-counter {
+    color: white;
+    font-size: 1.2em;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+    margin-bottom: 10px;
+}
+
+.card-counter {
+    color: white;
+    font-size: 1.1em;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+    margin-bottom: 20px;
+}
+
+/* Pack Container */
+.pack-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 30px;
+}
+
+.pack-box {
+    width: 300px;
+    height: 400px;
+    background: linear-gradient(135deg, #0077b5 0%, #004182 100%);
+    border-radius: 20px;
+    position: relative;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    cursor: pointer;
+    transition: transform 0.3s;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pack-box:hover {
+    transform: scale(1.05);
+}
+
+.pack-seal {
+    font-size: 3em;
+    font-weight: bold;
+    color: white;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    z-index: 2;
+}
+
+.pack-shine {
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(45deg, transparent 30%, rgba(255, 255, 255, 0.3) 50%, transparent 70%);
+    animation: shine 3s infinite;
+}
+
+@keyframes shine {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.open-pack-btn {
+    background: #0077b5;
+    color: white;
+    padding: 20px 50px;
+    border: none;
+    border-radius: 50px;
+    font-size: 1.5em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 10px 30px rgba(0, 119, 181, 0.4);
+}
+
+.open-pack-btn:hover:not(:disabled) {
+    transform: translateY(-3px);
+    box-shadow: 0 15px 40px rgba(0, 119, 181, 0.5);
+}
+
+.open-pack-btn:active:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.open-pack-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Pack Opening Screen */
+.open-pack-screen {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 30px;
+    overflow: visible;
+}
+
+.cards-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    max-width: 1200px;
+    width: 100%;
+    min-height: 500px;
+    overflow: visible;
+    position: relative;
+    padding: 50px;
+    box-sizing: border-box;
+}
+
+/* Card Styles */
+.card {
+    width: 280px;
+    height: 420px;
+    perspective: 1000px;
+    cursor: pointer;
+    position: absolute;
+    z-index: 1;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.card-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transition: transform 0.6s;
+    transform-style: preserve-3d;
+    transform-origin: center center;
+}
+
+.card.flipped .card-inner {
+    transform: rotateY(180deg);
+}
+
+.card-back,
+.card-front {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.card-back {
+    background: linear-gradient(135deg, #0077b5 0%, #004182 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform: rotateY(0deg);
+    cursor: pointer;
+    position: absolute;
+    top: 0;
+    left: 0;
+    overflow: hidden;
+}
+
+.card-back::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(45deg, transparent 30%, rgba(255, 255, 255, 0.1) 50%, transparent 70%);
+    animation: cardShine 3s infinite;
+}
+
+@keyframes cardShine {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.card-logo {
+    color: white;
+    font-size: 3em;
+    font-weight: bold;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    letter-spacing: 2px;
+    text-align: center;
+    position: relative;
+    z-index: 1;
+}
+
+.swipeable-card:hover .card-back {
+    transform: rotateY(0deg);
+    box-shadow: 0 15px 40px rgba(0, 119, 181, 0.5);
+}
+
+.swipeable-card:hover {
+    transform: translate(-50%, -50%) scale(1.02);
+}
+
+.card-front {
+    background: white;
+    transform: rotateY(180deg);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.card-header {
+    padding: 15px 15px 10px 15px;
+    text-align: center;
+    border-bottom: 2px solid #f0f0f0;
+}
+
+.card-name {
+    color: #333;
+    font-size: 1.3em;
+    margin: 0;
+    font-weight: 600;
+}
+
+.card-image-container {
+    width: 100%;
+    height: 200px;
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.card-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.rarity-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.7em;
+    font-weight: bold;
+    color: white;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* Rarity Colors */
+.rarity-common {
+    border-top: 4px solid #9e9e9e;
+}
+
+.rarity-common .rarity-badge {
+    background: #9e9e9e;
+}
+
+.rarity-uncommon {
+    border-top: 4px solid #4caf50;
+}
+
+.rarity-uncommon .rarity-badge {
+    background: #4caf50;
+}
+
+.rarity-rare {
+    border-top: 4px solid #2196f3;
+}
+
+.rarity-rare .rarity-badge {
+    background: #2196f3;
+}
+
+.rarity-epic {
+    border-top: 4px solid #9c27b0;
+}
+
+.rarity-epic .rarity-badge {
+    background: #9c27b0;
+}
+
+.rarity-legendary {
+    border-top: 4px solid #ff9800;
+    animation: legendary-glow 2s infinite;
+}
+
+.rarity-legendary .rarity-badge {
+    background: #ff9800;
+}
+
+@keyframes legendary-glow {
+    0%, 100% {
+        box-shadow: 0 0 10px rgba(255, 152, 0, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 20px rgba(255, 152, 0, 0.8);
+    }
+}
+
+.card-info {
+    padding: 15px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 10px;
+}
+
+.card-title {
+    color: #333;
+    font-size: 0.9em;
+    line-height: 1.5;
+    margin: 0;
+}
+
+.card-title strong {
+    color: #0077b5;
+    font-weight: 600;
+}
+
+.card-program {
+    color: #333;
+    font-size: 0.85em;
+    line-height: 1.5;
+    margin: 0;
+}
+
+.card-program strong {
+    color: #0077b5;
+    font-weight: 600;
+}
+
+/* Card Flip Animation */
+.card {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.8);
+    transition: opacity 0.3s, transform 0.3s;
+}
+
+.card.revealed {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+}
+
+.swipeable-card {
+    cursor: pointer;
+}
+
+.swipeable-card.swiped-right {
+    transform: translate(-50%, -50%) translateX(150%) rotate(30deg) scale(0.9);
+    opacity: 0;
+    transition: transform 0.5s ease-out, opacity 0.5s ease-out;
+    z-index: 10;
+}
+
+.swipeable-card.swiped-left {
+    transform: translate(-50%, -50%) translateX(-150%) rotate(-30deg) scale(0.9);
+    opacity: 0;
+    transition: transform 0.5s ease-out, opacity 0.5s ease-out;
+    z-index: 10;
+}
+
+/* Swipe Buttons */
+.swipe-buttons {
+    display: flex;
+    gap: 30px;
+    justify-content: center;
+    margin-top: 30px;
+}
+
+.swipe-btn {
+    padding: 20px 50px;
+    border: none;
+    border-radius: 50px;
+    font-size: 1.3em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    color: white;
+}
+
+.swipe-left-btn {
+    background: #ff4757;
+}
+
+.swipe-left-btn:hover:not(:disabled) {
+    transform: scale(1.1);
+    box-shadow: 0 15px 40px rgba(255, 71, 87, 0.5);
+}
+
+.swipe-right-btn {
+    background: #2ed573;
+}
+
+.swipe-right-btn:hover:not(:disabled) {
+    transform: scale(1.1);
+    box-shadow: 0 15px 40px rgba(46, 213, 115, 0.5);
+}
+
+.swipe-btn:active:not(:disabled) {
+    transform: scale(0.95);
+}
+
+.swipe-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.next-card-btn {
+    background: #2ed573;
+    color: white;
+    padding: 15px 40px;
+    border: none;
+    border-radius: 50px;
+    font-size: 1.2em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 10px 30px rgba(46, 213, 115, 0.4);
+    margin-top: 20px;
+}
+
+.next-card-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 15px 40px rgba(46, 213, 115, 0.5);
+}
+
+.next-card-btn:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.next-card-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.back-btn {
+    background: #0077b5;
+    color: white;
+    padding: 15px 40px;
+    border: none;
+    border-radius: 50px;
+    font-size: 1.2em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 10px 30px rgba(0, 119, 181, 0.4);
+    margin-top: 20px;
+}
+
+.back-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 15px 40px rgba(0, 119, 181, 0.5);
+}
+
+.back-btn:active {
+    transform: translateY(0);
+}
+
+/* Summary Container */
+.summary-container {
+    width: 100%;
+    max-width: 1200px;
+    background: white;
+    border-radius: 20px;
+    padding: 30px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    margin-top: 20px;
+}
+
+.summary-title {
+    color: #0077b5;
+    text-align: center;
+    font-size: 2em;
+    margin-bottom: 30px;
+}
+
+.summary-stats {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    margin-bottom: 40px;
+}
+
+.stat-box {
+    text-align: center;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 15px;
+    min-width: 150px;
+}
+
+.stat-number {
+    font-size: 3em;
+    font-weight: bold;
+    color: #0077b5;
+    margin-bottom: 10px;
+}
+
+.stat-label {
+    font-size: 1.1em;
+    color: #666;
+    font-weight: 600;
+}
+
+.summary-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+
+.summary-section {
+    margin-bottom: 30px;
+}
+
+.section-title {
+    color: #333;
+    font-size: 1.5em;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #e0e0e0;
+}
+
+.summary-cards-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: center;
+}
+
+.summary-card {
+    width: 200px;
+    background: white;
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    transition: transform 0.2s;
+}
+
+.summary-card:hover {
+    transform: translateY(-5px);
+}
+
+.summary-card-image {
+    width: 100%;
+    height: 150px;
+    position: relative;
+    overflow: hidden;
+}
+
+.summary-card-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.summary-card-info {
+    padding: 15px;
+}
+
+.summary-card-info h4 {
+    color: #333;
+    font-size: 1.1em;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.summary-card-info p {
+    color: #666;
+    font-size: 0.85em;
+    margin-bottom: 5px;
+    line-height: 1.4;
+}
+
+.summary-program {
+    color: #999;
+    font-size: 0.75em;
+    font-style: italic;
+}
+
+.swiped-right-summary {
+    border-top: 4px solid #2ed573;
+}
+
+.swiped-left-summary {
+    border-top: 4px solid #ff4757;
+    opacity: 0.7;
+}
+
+/* Legacy Swipe App Styles (kept for reference) */
+.swipe-card {
+    background: white;
+    border-radius: 20px;
+    width: 100%;
+    max-width: 400px;
+    height: 600px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.3s;
+}
+
+.swipe-card.hidden {
+    display: none;
+}
+
+.profile-image {
+    width: 100%;
+    height: 70%;
+    object-fit: cover;
+    background: #f0f0f0;
+}
+
+.profile-info {
+    padding: 25px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    background: white;
+}
+
+.profile-name {
+    color: #333;
+    font-size: 1.8em;
+    margin-bottom: 10px;
+}
+
+.profile-title {
+    color: #666;
+    font-size: 1.2em;
+    line-height: 1.5;
+}
+
+.button-container {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+}
+
+.action-btn {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: none;
+    font-size: 1.2em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    color: white;
+}
+
+.nope-btn {
+    background: #ff4757;
+}
+
+.nope-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 8px 20px rgba(255, 71, 87, 0.4);
+}
+
+.connect-btn {
+    background: #2ed573;
+}
+
+.connect-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 8px 20px rgba(46, 213, 115, 0.4);
+}
+
+.action-btn:active {
+    transform: scale(0.95);
+}
+
+.action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.completion-message {
+    background: white;
+    padding: 30px;
+    border-radius: 20px;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    max-width: 400px;
+}
+
+.completion-message h2 {
+    color: #0077b5;
+    margin-bottom: 10px;
+}
+
+.completion-message p {
+    color: #666;
+    font-size: 1.2em;
+}
+
+/* Responsive Design */
+@media (max-width: 480px) {
+    .survey-container {
+        padding: 25px;
+    }
+    
+    .survey-container h1 {
+        font-size: 2em;
+    }
+    
+    .app-title {
+        font-size: 1.8em;
+    }
+    
+    .pack-box {
+        width: 250px;
+        height: 350px;
+    }
+    
+    .card {
+        width: 220px;
+        height: 360px;
+    }
+    
+    .card-image-container {
+        height: 180px;
+    }
+    
+    .cards-container {
+        padding: 30px;
+    }
+    
+    .card-name {
+        font-size: 1em;
+    }
+    
+    .card-title {
+        font-size: 0.8em;
+    }
+    
+    .open-pack-btn {
+        padding: 15px 40px;
+        font-size: 1.2em;
+    }
+    
+    .swipe-card {
+        height: 500px;
+    }
+    
+    .action-btn {
+        width: 70px;
+        height: 70px;
+        font-size: 1em;
+    }
+}
+

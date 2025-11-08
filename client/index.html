@@ -1,14 +1,38 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LinkedIn Baddie Finder</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LinkedIn Parody - Pack Opening</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <h1 class="app-title">Professional Networker Packs</h1>
+        <div id="pack-counter" class="pack-counter">Pack 1 of 5</div>
+        <div id="card-counter" class="card-counter" style="display: none;">Card 1 of 5</div>
+        
+        <!-- Pack Selection Screen -->
+        <div id="pack-container" class="pack-container">
+            <div class="pack-box">
+                <div class="pack-seal">LinkedIn</div>
+                <div class="pack-shine"></div>
+            </div>
+            <button id="open-pack-btn" class="open-pack-btn">Open Pack</button>
+        </div>
+        
+        <!-- Pack Opening Screen -->
+        <div id="open-pack-screen" class="open-pack-screen" style="display: none;">
+            <div id="cards-container" class="cards-container"></div>
+            <div id="swipe-buttons" class="swipe-buttons" style="display: none;">
+                <button id="swipe-left-btn" class="swipe-btn swipe-left-btn">✗ Pass</button>
+                <button id="swipe-right-btn" class="swipe-btn swipe-right-btn">✓ Connect</button>
+            </div>
+            <div id="summary-container" class="summary-container" style="display: none;"></div>
+            <button id="back-btn" class="back-btn" style="display: none;">Open Next Pack</button>
+        </div>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
 </html>
-
