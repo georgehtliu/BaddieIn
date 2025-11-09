@@ -100,14 +100,15 @@ const MessageComposer = ({ rosterCards }) => {
               <select
                 value={selectedPerson?.id || ''}
                 onChange={(e) => {
-                  const person = rosterCards.find(c => c.id === parseInt(e.target.value));
+                  const person = rosterCards.find(c => c.id.toString() === e.target.value);
                   setSelectedPerson(person);
                 }}
-                className="w-full bg-slate-900/80 text-white border border-yellow-500/30 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 transition-all"
+                className="w-full bg-slate-900/80 text-white border border-yellow-500/30 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 transition-all cursor-pointer relative z-10"
+                style={{ pointerEvents: 'auto' }}
               >
                 <option value="">Choose from your roster...</option>
                 {rosterCards.map(card => (
-                  <option key={card.id} value={card.id}>
+                  <option key={card.id} value={card.id.toString()}>
                     {card.name} - {card.major}
                   </option>
                 ))}
