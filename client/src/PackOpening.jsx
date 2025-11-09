@@ -577,6 +577,15 @@ const PackOpening = ({ onCardLiked }) => {
   });
   const fetchRequestIdRef = useRef(0);
 
+  const resetDailyLock = useCallback(() => {
+    try {
+      localStorage.removeItem('daily-pack-claimed');
+    } catch {
+      // ignore storage errors
+    }
+    setPackCompleted(false);
+  }, []);
+
   const fetchAttractivenessScores = useCallback(async (packCards, requestId) => {
     setIsScoring(true);
     await Promise.all(
@@ -854,7 +863,15 @@ const PackOpening = ({ onCardLiked }) => {
               <p className="text-xl md:text-2xl mb-10 text-white/80 drop-shadow-lg max-w-2xl mx-auto">
                 You’ve already opened today’s pack. Come back tomorrow for fresh matches!
               </p>
-              <div className="text-6xl">🕒</div>
+              <div className="space-y-4 flex flex-col items-center">
+                <div className="text-6xl">🕒</div>
+                <button
+                  onClick={resetDailyLock}
+                  className="px-6 py-3 rounded-full bg-white/10 text-white/80 hover:bg-white/20 transition-all"
+                >
+                  Unlock another pack for testing
+                </button>
+              </div>
             </div>
           ) : (
             // Pack selection screen
