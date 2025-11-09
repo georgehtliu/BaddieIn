@@ -70,7 +70,7 @@ const CustomDropdown = ({ value, options, onChange, placeholder = 'Select an opt
           <div 
             className="overflow-y-auto custom-scrollbar"
             style={{
-              maxHeight: '250px',
+              maxHeight: '500px',
               overflowY: 'auto',
               overflowX: 'hidden',
               overscrollBehavior: 'contain'
@@ -322,6 +322,12 @@ function DatingLandingPage() {
 
   const questions = [
     {
+      id: 'gender',
+      question: 'What gender partner are you looking for?',
+      options: ['Male', 'Female', 'Both'],
+      type: 'multiple-choice'
+    },
+    {
       id: 'industry',
       question: 'What industry are you interested in?',
       options: ['Technology', 'Finance', 'Healthcare', 'Education', 'Business', 'Self-Employed', 'Other'],
@@ -406,12 +412,6 @@ function DatingLandingPage() {
         'London, UK',
         'Other'
       ]
-    },
-    {
-      id: 'gender',
-      question: 'What gender partner are you looking for?',
-      options: ['Male', 'Female', 'Both'],
-      type: 'multiple-choice'
     }
   ];
 
@@ -619,7 +619,7 @@ function DatingLandingPage() {
 
   // Show PackOpening after survey is complete
   if (showPackOpening) {
-    return <PackOpening />;
+    return <PackOpening isFirstPack={true} />;
   }
 
   return (
@@ -670,7 +670,7 @@ function DatingLandingPage() {
                   {/* Button */}
                   <button 
                     onClick={handleStartSurvey}
-                    className="relative bg-gradient-to-r from-pink-500 via-pink-400 to-pink-500 text-white px-12 py-5 rounded-full text-xl font-semibold transition-all duration-300 shadow-[0_0_20px_rgba(236,72,153,0.6),0_0_40px_rgba(236,72,153,0.4)] hover:shadow-[0_0_30px_rgba(236,72,153,0.8),0_0_60px_rgba(236,72,153,0.6)] hover:scale-105 active:scale-95"
+                    className="relative bg-gradient-to-r from-pink-500 via-pink-400 to-pink-500 text-white px-12 py-5 rounded-full text-xl font-semibold transition-all duration-300 shadow-[0_0_20px_rgba(236,72,153,0.6),0_0_40px_rgba(236,72,153,0.4)] hover:shadow-[0_0_30px_rgba(236,72,153,0.8),0_0_60px_rgba(236,72,153,0.6)] hover:scale-105 active:scale-95 cursor-pointer"
                   >
                     Choose Your Preferences Now
                   </button>
@@ -700,7 +700,7 @@ function DatingLandingPage() {
                 </div>
 
                 {/* Question content - Slides left/right */}
-                <div className="relative" style={{ overflowX: 'hidden', overflowY: 'visible' }}>
+                <div className="relative" style={{ overflowX: 'hidden', overflowY: 'visible', minHeight: '400px' }}>
                   {/* Previous question sliding out */}
                   {isTransitioning && (
                     <div 
@@ -887,7 +887,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-6 py-4 flex gap-4">
           <button
             onClick={() => setActiveTab('home')}
-            className={`px-6 py-3 rounded-full font-semibold transition-all duration-300 ${
+            className={`px-6 py-3 rounded-full font-semibold transition-all duration-300 cursor-pointer ${
               activeTab === 'home'
                 ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-lg shadow-pink-500/50'
                 : 'bg-white/10 text-white/70 hover:bg-white/20'
@@ -897,7 +897,7 @@ export default function App() {
           </button>
           <button
             onClick={() => setActiveTab('pack')}
-            className={`px-6 py-3 rounded-full font-semibold transition-all duration-300 ${
+            className={`px-6 py-3 rounded-full font-semibold transition-all duration-300 cursor-pointer ${
               activeTab === 'pack'
                 ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-lg shadow-pink-500/50'
                 : 'bg-white/10 text-white/70 hover:bg-white/20'
@@ -907,7 +907,7 @@ export default function App() {
           </button>
           <button
             onClick={() => setActiveTab('roster')}
-            className={`px-6 py-3 rounded-full font-semibold transition-all duration-300 relative ${
+            className={`px-6 py-3 rounded-full font-semibold transition-all duration-300 relative cursor-pointer ${
               activeTab === 'roster'
                 ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-lg shadow-pink-500/50'
                 : 'bg-white/10 text-white/70 hover:bg-white/20'

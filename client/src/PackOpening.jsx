@@ -436,13 +436,6 @@ const SwipeableCard = ({ card, onSwipe, isRevealed, isActive, onFlip, attractive
         }
       }}
     >
-      {scoreLabel && (
-        <div className="absolute top-4 right-4 z-50">
-          <span className="px-3 py-1 rounded-full bg-black/80 text-white text-sm font-semibold border border-white/20">
-            {scoreLabel}
-          </span>
-        </div>
-      )}
       {/* Swipe indicators - only show for revealed cards */}
       {isDragging && isRevealed && (
         <>
@@ -528,6 +521,14 @@ const SwipeableCard = ({ card, onSwipe, isRevealed, isActive, onFlip, attractive
           className="absolute w-full h-full backface-hidden rounded-3xl overflow-hidden shadow-2xl border-2 border-white/20"
           style={{ backfaceVisibility: 'hidden' }}
         >
+          {/* Score rating - only show when revealed */}
+          {scoreLabel && isRevealed && (
+            <div className="absolute top-4 right-4 z-50">
+              <span className="px-3 py-1 rounded-full bg-black/80 text-white text-sm font-semibold border border-white/20">
+                {scoreLabel}
+              </span>
+            </div>
+          )}
           {/* Card content */}
           <div className="relative h-full flex flex-col bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
             {/* Profile Image */}
@@ -651,7 +652,7 @@ const SwipeableCard = ({ card, onSwipe, isRevealed, isActive, onFlip, attractive
 };
 
 // Pack Opening Component
-const PackOpening = ({ onCardLiked = null }) => {
+const PackOpening = ({ onCardLiked = null, isFirstPack = false }) => {
   const [packOpened, setPackOpened] = useState(false);
   const [currentPack, setCurrentPack] = useState([]);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
@@ -966,10 +967,10 @@ const PackOpening = ({ onCardLiked = null }) => {
                 You've already opened today's pack. Come back tomorrow for fresh matches!
               </p>
               <div className="space-y-4 flex flex-col items-center">
-                <div className="text-6xl">🕒</div>
+                <div className="w-16 h-16 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
                 <button
                   onClick={resetDailyLock}
-                  className="px-6 py-3 rounded-full bg-white/10 text-white/80 hover:bg-white/20 transition-all"
+                  className="px-6 py-3 rounded-full bg-white/10 text-white/80 hover:bg-white/20 transition-all cursor-pointer"
                 >
                   Unlock another pack for testing
                 </button>
@@ -977,81 +978,81 @@ const PackOpening = ({ onCardLiked = null }) => {
             </div>
           ) : (
             // Pack selection screen
-            <div className="text-center space-y-8">
-              <h1 className="text-6xl md:text-8xl font-bold mb-6 text-white drop-shadow-2xl animate-fade-in">
-                Open Your First Pack
-              </h1>
-              <p className="text-xl md:text-2xl mb-10 text-white/80 drop-shadow-lg max-w-2xl mx-auto">
-                Get 5 new matches today! Cards will reveal one by one.
-              </p>
-              <div className="relative inline-block">
-                {/* Multiple dramatic glow layers */}
-                <div className="absolute inset-0 rounded-2xl bg-pink-500 blur-3xl opacity-80 animate-pulse-glow"></div>
-                <div className="absolute inset-0 rounded-2xl bg-purple-400 blur-2xl opacity-60 animate-pulse-glow-delayed"></div>
-                <div className="absolute -inset-2 rounded-2xl bg-pink-400 blur-xl opacity-50 animate-pulse-glow-slow"></div>
-                <div className="absolute -inset-4 rounded-2xl bg-purple-500 blur-2xl opacity-30 animate-pulse-glow"></div>
-                
-                {/* Shimmer effect overlay */}
-                <div className="absolute inset-0 rounded-2xl overflow-hidden">
-                  <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent transform -skew-x-12"></div>
+            isFirstPack ? (
+              // First pack welcome screen (after survey) - CLEAN & SIMPLE
+              <div className="text-center space-y-10 max-w-2xl mx-auto">
+                <div className="space-y-4 animate-fade-in">
+                  <h1 className="text-4xl md:text-6xl font-bold text-white">
+                    Ready to discover?
+                  </h1>
+                  <p className="text-lg md:text-xl text-white/70">
+                    Your first pack of 5 matches is ready
+                  </p>
                 </div>
                 
-                {/* 3D Pack Box Visual */}
-                <div className="absolute -top-24 left-1/2 transform -translate-x-1/2 pointer-events-none z-0">
-                  <div className="relative w-40 h-40 animate-float">
-                    {/* Box shadow */}
-                    <div className="absolute inset-0 bg-black/40 blur-3xl transform translate-y-12 scale-150"></div>
-                    {/* Glowing box */}
-                    <div className="relative w-full h-full">
-                      {/* Main box with 3D effect */}
-                      <div className="absolute inset-0 bg-gradient-to-br from-pink-400 via-purple-500 to-pink-600 rounded-xl shadow-2xl border-4 border-pink-300 transform rotate-3 perspective-1000">
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <span className="text-7xl drop-shadow-2xl">📦</span>
-                        </div>
-                        {/* Shine overlay */}
-                        <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-transparent rounded-xl"></div>
-                        {/* Top highlight */}
-                        <div className="absolute top-0 left-0 right-0 h-1/3 bg-gradient-to-b from-white/40 to-transparent rounded-t-xl"></div>
-                      </div>
-                      {/* Glow rings */}
-                      <div className="absolute -inset-4 bg-pink-400/30 rounded-xl blur-xl animate-pulse"></div>
-                      <div className="absolute -inset-8 bg-purple-400/20 rounded-xl blur-2xl animate-pulse" style={{ animationDelay: '0.5s' }}></div>
-                    </div>
-                  </div>
+                <div className="pt-8">
+                  <button
+                    onClick={openPack}
+                    className="w-full max-w-md mx-auto bg-gradient-to-r from-pink-500 to-purple-500 text-white px-12 py-6 rounded-2xl text-xl md:text-2xl font-semibold transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg cursor-pointer"
+                  >
+                    Open Pack
+                  </button>
                 </div>
-                
-                {/* Pack button */}
-                <button
-                  onClick={openPack}
-                  className="relative bg-gradient-to-r from-pink-500 via-purple-500 to-pink-600 text-white px-20 py-10 rounded-2xl text-4xl font-bold transition-all duration-300 shadow-[0_0_40px_rgba(236,72,153,0.8),0_0_80px_rgba(168,85,247,0.6),inset_0_2px_10px_rgba(255,255,255,0.3)] hover:shadow-[0_0_60px_rgba(236,72,153,1),0_0_120px_rgba(168,85,247,0.8),inset_0_2px_15px_rgba(255,255,255,0.5)] hover:scale-110 active:scale-95 transform hover:-translate-y-1 border-2 border-pink-300/50 overflow-hidden group cursor-pointer"
-                >
-                  {/* Button shine effect */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-                  
-                  {/* Button content */}
-                  <div className="relative z-10 flex items-center justify-center gap-4">
-                    <span className="text-5xl animate-bounce-slow">✨</span>
-                    <span className="tracking-wide">OPEN YOUR PACK</span>
-                    <span className="text-5xl animate-bounce-slow" style={{ animationDelay: '0.2s' }}>✨</span>
-                  </div>
-                  
-                  {/* Sparkle particles */}
-                  <div className="absolute inset-0 pointer-events-none">
-                    <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-pink-300 rounded-full animate-sparkle opacity-80"></div>
-                    <div className="absolute top-3/4 right-1/4 w-2 h-2 bg-purple-300 rounded-full animate-sparkle opacity-80" style={{ animationDelay: '0.3s' }}></div>
-                    <div className="absolute bottom-1/4 left-1/2 w-2 h-2 bg-pink-400 rounded-full animate-sparkle opacity-80" style={{ animationDelay: '0.6s' }}></div>
-                  </div>
-                </button>
               </div>
-            </div>
+            ) : (
+              // Regular pack selection screen (from tabs)
+              <div className="text-center space-y-12 max-w-2xl mx-auto">
+                <div className="space-y-6">
+                  <h1 className="text-5xl md:text-7xl font-bold text-white drop-shadow-2xl animate-fade-in">
+                    Discover New Matches
+                  </h1>
+                  <p className="text-lg md:text-xl text-white/70 drop-shadow-lg">
+                    Open a pack to reveal 5 curated profiles. Each card can be flipped to see details.
+                  </p>
+                </div>
+                
+                <div className="relative">
+                  {/* Glow effect */}
+                  <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-pink-500/20 via-purple-500/20 to-pink-500/20 blur-2xl"></div>
+                  
+                  {/* Pack button */}
+                  <button
+                    onClick={openPack}
+                    className="relative w-full max-w-md mx-auto bg-gradient-to-r from-pink-500 via-purple-500 to-pink-600 text-white px-12 py-6 rounded-3xl text-2xl md:text-3xl font-bold transition-all duration-300 shadow-[0_0_30px_rgba(236,72,153,0.6),0_0_60px_rgba(168,85,247,0.4)] hover:shadow-[0_0_40px_rgba(236,72,153,0.8),0_0_80px_rgba(168,85,247,0.6)] hover:scale-105 active:scale-95 border-2 border-pink-300/30 overflow-hidden group cursor-pointer"
+                  >
+                    <div className="relative z-10">
+                      Open Your Pack
+                    </div>
+                    {/* Shine effect on hover */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent transform -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                  </button>
+                </div>
+                
+                {/* Info cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-12">
+                  <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
+                    <div className="text-3xl font-bold text-white mb-2">5</div>
+                    <div className="text-white/70 text-sm">New Profiles</div>
+                  </div>
+                  <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
+                    <div className="text-3xl font-bold text-white mb-2">1</div>
+                    <div className="text-white/70 text-sm">Pack Per Day</div>
+                  </div>
+                  <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
+                    <div className="text-3xl font-bold text-white mb-2">∞</div>
+                    <div className="text-white/70 text-sm">Possibilities</div>
+                  </div>
+                </div>
+              </div>
+            )
           )
         ) : isScoring ? (
           <div className="flex flex-col items-center justify-center space-y-6">
             <div className="relative">
-              <div className="w-24 h-24 border-4 border-pink-400 border-t-transparent rounded-full animate-spin"></div>
-              <div className="absolute inset-0 flex items-center justify-center text-3xl">📊</div>
+              <div className="w-16 h-16 border-4 border-pink-400 border-t-transparent rounded-full animate-spin"></div>
             </div>
-            <div className="text-xl text-white/80">Scoring your pack...</div>
+            <div className="text-xl text-white/80 font-medium">Analyzing profiles...</div>
+            <div className="text-sm text-white/50">This may take a moment</div>
           </div>
         ) : (
           // Pack opening screen
@@ -1137,13 +1138,13 @@ const PackOpening = ({ onCardLiked = null }) => {
 
               {/* No more cards message */}
               {!hasMoreCards && isCurrentCardRevealed && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="text-4xl mb-4">✨</div>
-                    <div className="text-2xl font-bold mb-2">Pack Complete!</div>
+                <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-3xl">
+                  <div className="text-center space-y-6">
+                    <div className="text-3xl font-bold text-white mb-2">Pack Complete</div>
+                    <p className="text-white/70 text-lg">You've reviewed all cards in this pack</p>
                     <button
                       onClick={resetPack}
-                      className="mt-4 px-8 py-4 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-full font-semibold hover:scale-105 transition-transform shadow-lg"
+                      className="px-8 py-4 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-full font-semibold hover:scale-105 transition-transform shadow-lg cursor-pointer"
                     >
                       Open Another Pack
                     </button>

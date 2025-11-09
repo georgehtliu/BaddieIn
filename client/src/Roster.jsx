@@ -1,9 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import Particles from 'react-particles';
 import { loadSlim } from 'tsparticles-slim';
+import { FaLinkedin, FaHeartBroken } from 'react-icons/fa';
 
 const Roster = ({ likedCards, onRemoveCard }) => {
-  const [expandedCardId, setExpandedCardId] = useState(null);
   const [showConfirmRemove, setShowConfirmRemove] = useState(false);
   const [cardToRemove, setCardToRemove] = useState(null);
   
@@ -76,35 +76,241 @@ const Roster = ({ likedCards, onRemoveCard }) => {
     detectRetina: true
   };
 
-  const getRarityColor = (rarity) => {
-    switch (rarity) {
-      case 'legendary':
-        return 'from-yellow-400 via-yellow-500 to-yellow-600';
-      case 'epic':
-        return 'from-purple-500 via-purple-600 to-purple-700';
-      case 'rare':
-        return 'from-blue-500 via-blue-600 to-blue-700';
-      case 'uncommon':
-        return 'from-gray-500 via-gray-600 to-gray-700';
-      case 'common':
-        return 'from-green-500 via-green-600 to-green-700';
-      default:
-        return 'from-gray-500 via-gray-600 to-gray-700';
-    }
-  };
+  // RosterCard component matching ProfileCard format
+  const RosterCard = ({ card, onCardClick, onRemoveClick, isExpanded }) => {
+    const [isFlipped, setIsFlipped] = useState(false);
+    const [isHovered, setIsHovered] = useState(false);
+    const [glowIntensity, setGlowIntensity] = useState(0);
+    const [rotation, setRotation] = useState(0);
 
-  const handleCardClick = (cardId) => {
-    if (expandedCardId === cardId) {
-      setExpandedCardId(null);
-    } else {
-      setExpandedCardId(cardId);
-    }
-  };
+    useEffect(() => {
+      const interval = setInterval(() => {
+        setGlowIntensity(prev => (prev + 0.05) % (Math.PI * 2));
+        setRotation(prev => (prev + 0.5) % 360);
+      }, 30);
+      return () => clearInterval(interval);
+    }, []);
 
-  const handleBackdropClick = (e) => {
-    if (e.target === e.currentTarget) {
-      setExpandedCardId(null);
-    }
+    const glowOpacity = 0.5 + Math.sin(glowIntensity) * 0.3;
+    const glowScale = 1 + Math.sin(glowIntensity) * 0.1;
+
+    const handleFlip = (e) => {
+      e.stopPropagation();
+      setIsFlipped(!isFlipped);
+    };
+
+    return (
+      <div 
+        className="relative w-80 h-[480px] cursor-pointer group transition-transform duration-300"
+        onClick={handleFlip}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        style={{ 
+          perspective: '1000px',
+          transform: isHovered ? 'scale(1.05)' : 'scale(1)'
+        }}
+      >
+        {/* Multi-layered animated glow effect */}
+        <div 
+          className="absolute -inset-6 rounded-3xl blur-3xl transition-all duration-500"
+          style={{ 
+            opacity: glowOpacity,
+            transform: `scale(${glowScale}) rotate(${rotation}deg)`,
+            background: `conic-gradient(from ${rotation}deg, #ec4899, #a855f7, #3b82f6, #ec4899)`
+          }}
+        />
+        <div 
+          className="absolute -inset-4 rounded-3xl bg-gradient-to-r from-pink-500 via-purple-500 to-blue-500 blur-2xl"
+          style={{ 
+            opacity: glowOpacity * 0.7,
+            transform: `scale(${glowScale * 0.9}) rotate(${-rotation}deg)`
+          }}
+        />
+        
+        <div 
+          className="relative w-full h-full transition-transform duration-700 preserve-3d z-20"
+          style={{
+            transformStyle: 'preserve-3d',
+            transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)'
+          }}
+        >
+          {/* Prestigious solid metallic gold border - only border frame */}
+          <div 
+            className="absolute inset-0 rounded-3xl z-10 backface-hidden pointer-events-none"
+            style={{
+              padding: '3px',
+              background: 'linear-gradient(135deg, #8b6914 0%, #A57B00 25%, #b8860b 50%, #A57B00 75%, #8b6914 100%)',
+              WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+              WebkitMaskComposite: 'xor',
+              mask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+              maskComposite: 'exclude',
+              backfaceVisibility: 'visible'
+            }}
+          >
+            <div className="w-full h-full rounded-3xl bg-transparent"></div>
+          </div>
+          <div 
+            className="absolute inset-0 rounded-3xl z-10 animate-metallic-shine backface-hidden pointer-events-none"
+            style={{
+              padding: '2px',
+              WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+              WebkitMaskComposite: 'xor',
+              mask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+              maskComposite: 'exclude',
+              backfaceVisibility: 'visible'
+            }}
+          >
+            <div 
+              className="w-full h-full rounded-3xl"
+              style={{
+                background: 'linear-gradient(135deg, #A57B00 0%, #c99a1a 20%, #d4af37 40%, #c99a1a 60%, #A57B00 100%)'
+              }}
+            ></div>
+          </div>
+          
+          {/* Front of card */}
+          <div
+            className="absolute w-full h-full backface-hidden rounded-3xl overflow-hidden shadow-2xl border-2 border-white/20"
+            style={{ backfaceVisibility: 'hidden' }}
+          >
+            {/* Card content */}
+            <div className="relative h-full flex flex-col bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+              {/* Profile Image */}
+              <div className="h-[280px] relative overflow-hidden flex-shrink-0">
+                {/* Gradient background */}
+                <div className="absolute inset-0 bg-gradient-to-br from-pink-600/30 via-purple-600/30 to-blue-600/30" />
+                
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="relative">
+                    {/* Outer animated glow rings */}
+                    <div className="absolute inset-0 -m-6 rounded-full bg-gradient-to-r from-pink-500 via-purple-500 to-blue-500 blur-2xl opacity-50 animate-spin-slow animate-pulse-scale" />
+                    <div className="absolute inset-0 -m-4 rounded-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 blur-xl opacity-60 animate-spin-reverse animate-pulse-scale-delayed" />
+                    <div className="absolute inset-0 -m-2 rounded-full bg-gradient-to-r from-pink-500 via-purple-500 to-blue-500 blur-lg opacity-40 animate-spin-slow" />
+                    
+                    {/* Animated rotating border ring */}
+                    <div className="absolute inset-0 -m-1 rounded-full animate-rotate-border" style={{
+                      width: 'calc(100% + 8px)',
+                      height: 'calc(100% + 8px)',
+                      background: 'conic-gradient(from 0deg, #ec4899, #a855f7, #3b82f6, #ec4899)',
+                      borderRadius: '50%',
+                      padding: '4px',
+                      mask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+                      WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+                      maskComposite: 'exclude',
+                      WebkitMaskComposite: 'xor'
+                    }}>
+                      <div className="w-full h-full rounded-full bg-transparent"></div>
+                    </div>
+                    
+                    {/* Avatar */}
+                    <div className="relative w-52 h-52 rounded-full overflow-hidden shadow-2xl border-4 border-white/30">
+                      {card.image ? (
+                        <img 
+                          src={card.image}
+                          alt={card.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.parentElement.classList.add('bg-gradient-to-br', 'from-pink-500', 'via-purple-500','to-blue-500', 'flex', 'items-center', 'justify-center');
+                            const initials = card.name.split(' ').map(n => n[0]).join('');
+                            e.target.parentElement.innerHTML = `<span class="text-white text-7xl font-bold">${initials}</span>`;
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-pink-500 via-purple-500 to-blue-500 flex items-center justify-center">
+                          <span className="text-white text-7xl font-bold">
+                            {card.name.split(' ').map(n => n[0]).join('')}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Inner glow pulse */}
+                    <div className="absolute inset-0 -m-3 rounded-full bg-gradient-to-r from-pink-400/50 via-purple-400/50 to-blue-400/50 blur-md animate-pulse-glow-inner" />
+                  </div>
+                </div>
+                
+                {/* Subtle ambient glow effect */}
+                <div 
+                  className="absolute inset-0 animate-gentle-pulse pointer-events-none"
+                  style={{
+                    background: 'radial-gradient(circle at center, rgba(236, 72, 153, 0.05) 0%, transparent 70%)'
+                  }}
+                />
+              </div>
+              
+              {/* Border divider */}
+              <div className="h-px bg-gradient-to-r from-transparent via-white/20 to-transparent flex-shrink-0"></div>
+              
+              {/* Profile Info */}
+              <div className="flex-1 flex flex-col items-center justify-center p-8 space-y-3 text-center min-h-0">
+                <h3 className="text-4xl font-bold text-white tracking-tight">
+                  {card.name}
+                </h3>
+                
+                <div className="space-y-2">
+                  <div className="text-white/90 text-lg font-medium">
+                    {card.major}
+                  </div>
+                  <div className="text-white/90 text-lg font-medium">
+                    {card.company}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Back of card */}
+          <div 
+            className="absolute w-full h-full backface-hidden rounded-3xl overflow-hidden shadow-2xl border-4 border-pink-400/30 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative"
+            style={{
+              backfaceVisibility: 'hidden',
+              transform: 'rotateY(180deg)'
+            }}
+          >
+            {/* Shine animation overlay */}
+            <div className="absolute inset-0 animate-shine pointer-events-none rounded-3xl"></div>
+            
+            <div className="h-full flex flex-col items-center justify-center p-8 relative z-10 space-y-6">
+              {/* LinkedIn Logo */}
+              {card.linkedin ? (
+                <a 
+                  href={card.linkedin} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-white/60 hover:text-white transition-all duration-300 hover:scale-125"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <FaLinkedin size={48} />
+                </a>
+              ) : (
+                <div className="text-white/60">
+                  <FaLinkedin size={48} />
+                </div>
+              )}
+              
+              {/* Remove button on back */}
+              {onRemoveClick && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemoveClick(card);
+                  }}
+                  className="px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-full font-semibold hover:from-red-600 hover:to-red-700 transition-all duration-200 hover:scale-105 shadow-lg cursor-pointer"
+                >
+                  Remove from Roster
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+        
+        {/* Hover instruction */}
+        <div className="absolute -bottom-12 left-1/2 transform -translate-x-1/2 text-white/50 text-sm whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+          Click to flip card
+        </div>
+      </div>
+    );
   };
 
   const handleRemoveClick = (card) => {
@@ -115,7 +321,6 @@ const Roster = ({ likedCards, onRemoveCard }) => {
   const confirmRemove = () => {
     if (cardToRemove && onRemoveCard) {
       onRemoveCard(cardToRemove);
-      setExpandedCardId(null);
       setShowConfirmRemove(false);
       setCardToRemove(null);
     }
@@ -153,385 +358,21 @@ const Roster = ({ likedCards, onRemoveCard }) => {
 
           {likedCards.length === 0 ? (
             <div className="text-center py-20">
-              <div className="text-8xl mb-6">💔</div>
+              <div className="mb-6 flex justify-center">
+                <FaHeartBroken className="text-8xl text-white/60" />
+              </div>
               <p className="text-2xl text-white/60">No cards in your roster yet</p>
             </div>
           ) : (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {likedCards.map((card) => {
-                  const isExpanded = expandedCardId === card.id;
-                  
-                  // Don't render expanded card in grid
-                  if (isExpanded) return null;
-                  
-                  return (
-                    <div
+            <div className="flex flex-wrap justify-center gap-8">
+              {likedCards.map((card) => (
+                <RosterCard
                       key={card.id}
-                      onClick={() => handleCardClick(card.id)}
-                      className="relative w-full h-[600px] rounded-3xl overflow-hidden shadow-2xl border-4 border-white/20 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 cursor-pointer transition-all duration-300 ease-out hover:scale-105"
-                    >
-                    {/* Glow effect */}
-                    <div
-                      className={`absolute -inset-4 rounded-3xl bg-gradient-to-r ${getRarityColor(
-                        card.rarity
-                      )} blur-2xl opacity-60 animate-pulse-glow`}
-                    />
-
-                    {/* Close button for expanded card */}
-                    {isExpanded && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setExpandedCardId(null);
-                        }}
-                        className="absolute top-4 left-4 z-50 w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center text-xl font-bold transition-all duration-200 hover:scale-110"
-                      >
-                        ✕
-                      </button>
-                    )}
-
-                    {/* Rarity indicator */}
-                    <div
-                      className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold text-white bg-gradient-to-r ${getRarityColor(
-                        card.rarity
-                      )} shadow-lg z-20`}
-                    >
-                      {card.rarity.toUpperCase()}
-                    </div>
-
-                    {/* Profile Image */}
-                    <div className={`relative overflow-hidden transition-all duration-500 ${isExpanded ? 'h-[350px]' : 'h-[280px]'}`}>
-                      <div className="absolute inset-0 bg-gradient-to-br from-pink-600/30 via-purple-600/30 to-blue-600/30" />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="relative">
-                          {/* Glow rings */}
-                          <div
-                            className={`absolute inset-0 -m-6 rounded-full bg-gradient-to-r ${getRarityColor(
-                              card.rarity
-                            )} blur-2xl opacity-50 animate-spin-slow animate-pulse-scale`}
-                          />
-                          <div
-                            className={`absolute inset-0 -m-4 rounded-full bg-gradient-to-r ${getRarityColor(
-                              card.rarity
-                            )} blur-xl opacity-60 animate-spin-reverse animate-pulse-scale-delayed`}
-                          />
-
-                          {/* Avatar */}
-                          <div className={`relative rounded-full overflow-hidden shadow-2xl border-4 border-white/30 transition-all duration-500 ${
-                            isExpanded ? 'w-64 h-64' : 'w-48 h-48'
-                          }`}>
-                            {card.image ? (
-                              <img
-                                src={card.image}
-                                alt={card.name}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div
-                                className={`w-full h-full bg-gradient-to-br ${getRarityColor(
-                                  card.rarity
-                                )} flex items-center justify-center text-white font-bold transition-all duration-500 ${
-                                  isExpanded ? 'text-7xl' : 'text-5xl'
-                                }`}
-                              >
-                                {card.name
-                                  .split(' ')
-                                  .map((n) => n[0])
-                                  .join('')}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Profile Info */}
-                    <div className={`p-5 space-y-3 bg-black/40 backdrop-blur-sm transition-all duration-500 ${
-                      isExpanded ? 'h-[calc(100%-350px)] overflow-y-auto' : ''
-                    }`}>
-                      <div className="text-center">
-                        <h3 className={`font-bold text-white tracking-tight mb-1 drop-shadow-lg transition-all duration-500 ${
-                          isExpanded ? 'text-4xl' : 'text-3xl'
-                        }`}>
-                          {card.name}
-                        </h3>
-                        <div className="text-white text-base font-semibold">{card.age} years old</div>
-                      </div>
-
-                      <div className="space-y-2 text-center">
-                        <div className="text-white text-lg font-semibold drop-shadow-md">
-                          {card.major}
-                        </div>
-                        <div className="text-white text-lg font-semibold drop-shadow-md">
-                          {card.company}
-                        </div>
-                        <div className="text-white text-base flex items-center justify-center gap-2 font-medium">
-                          <span>📍</span>
-                          {card.location}
-                        </div>
-                      </div>
-
-                      {/* Bio */}
-                      <div className="pt-3 border-t border-white/20">
-                        <p className={`text-white leading-relaxed text-center font-medium drop-shadow-md px-2 transition-all duration-500 ${
-                          isExpanded ? 'text-lg' : 'text-base'
-                        }`}>
-                          {card.bio}
-                        </p>
-                      </div>
-
-                      {/* Interests */}
-                      <div className="pt-3">
-                        <div className="text-white text-sm mb-2 text-center font-semibold">Interests</div>
-                        <div className="flex flex-wrap gap-2 justify-center">
-                          {card.interests.map((interest, idx) => (
-                            <span
-                              key={idx}
-                              className="px-4 py-2 rounded-full bg-white/20 text-white text-sm font-semibold border border-white/30 drop-shadow-md"
-                            >
-                              {interest}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Experience */}
-                      <div className="pt-3 text-center border-t border-white/20">
-                        <div className="text-white/90 text-sm mb-1 font-semibold">Experience</div>
-                        <div className="text-white text-base font-bold">{card.experience}</div>
-                      </div>
-
-                      {/* Email and LinkedIn - Only shown when expanded */}
-                      {isExpanded && card.email && card.linkedin && (
-                        <div className="pt-4 mt-4 border-t-2 border-white/30 space-y-4">
-                          <div className="text-center">
-                            <div className="text-white text-lg font-bold mb-3">Contact Information</div>
-                            
-                            {/* Email */}
-                            <div className="mb-3">
-                              <a
-                                href={`mailto:${card.email}`}
-                                onClick={(e) => e.stopPropagation()}
-                                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-full font-semibold hover:from-blue-600 hover:to-cyan-600 transition-all duration-200 hover:scale-105 shadow-lg"
-                              >
-                                <span>📧</span>
-                                <span>{card.email}</span>
-                              </a>
-                            </div>
-
-                            {/* LinkedIn */}
-                            <div>
-                              <a
-                                href={card.linkedin}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-full font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 hover:scale-105 shadow-lg"
-                              >
-                                <span>💼</span>
-                                <span>LinkedIn Profile</span>
-                              </a>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  );
-                })}
-              </div>
-
-              {/* Expanded Card - Rendered outside grid */}
-              {expandedCardId && (() => {
-                const expandedCard = likedCards.find(card => card.id === expandedCardId);
-                if (!expandedCard) return null;
-                
-                return (
-                  <>
-                    {/* Backdrop */}
-                    <div
-                      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-40 transition-opacity duration-300"
-                      onClick={handleBackdropClick}
-                    />
-                    
-                    {/* Expanded Card */}
-                    <div
-                      className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 w-[90vw] max-w-2xl h-[90vh] max-h-[800px] rounded-3xl overflow-hidden shadow-2xl border-4 border-white/20 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 transition-all duration-500 ease-out"
-                    >
-                      {/* Glow effect */}
-                      <div
-                        className={`absolute -inset-4 rounded-3xl bg-gradient-to-r ${getRarityColor(
-                          expandedCard.rarity
-                        )} blur-2xl opacity-60 animate-pulse-glow`}
-                      />
-
-                      {/* Close button */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setExpandedCardId(null);
-                        }}
-                        className="absolute top-4 left-4 z-50 w-10 h-10 rounded-full bg-black/70 hover:bg-black/90 text-white flex items-center justify-center text-xl font-bold transition-all duration-200 hover:scale-110 shadow-lg"
-                      >
-                        ✕
-                      </button>
-
-                      {/* Rarity indicator */}
-                      <div
-                        className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold text-white bg-gradient-to-r ${getRarityColor(
-                          expandedCard.rarity
-                        )} shadow-lg z-20`}
-                      >
-                        {expandedCard.rarity.toUpperCase()}
-                      </div>
-
-                      {/* Profile Image */}
-                      <div className="relative h-[350px] overflow-hidden">
-                        <div className="absolute inset-0 bg-gradient-to-br from-pink-600/30 via-purple-600/30 to-blue-600/30" />
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <div className="relative">
-                            {/* Glow rings */}
-                            <div
-                              className={`absolute inset-0 -m-6 rounded-full bg-gradient-to-r ${getRarityColor(
-                                expandedCard.rarity
-                              )} blur-2xl opacity-50 animate-spin-slow animate-pulse-scale`}
-                            />
-                            <div
-                              className={`absolute inset-0 -m-4 rounded-full bg-gradient-to-r ${getRarityColor(
-                                expandedCard.rarity
-                              )} blur-xl opacity-60 animate-spin-reverse animate-pulse-scale-delayed`}
-                            />
-
-                            {/* Avatar */}
-                            <div className="relative w-64 h-64 rounded-full overflow-hidden shadow-2xl border-4 border-white/30">
-                              {expandedCard.image ? (
-                                <img
-                                  src={expandedCard.image}
-                                  alt={expandedCard.name}
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <div
-                                  className={`w-full h-full bg-gradient-to-br ${getRarityColor(
-                                    expandedCard.rarity
-                                  )} flex items-center justify-center text-white text-7xl font-bold`}
-                                >
-                                  {expandedCard.name
-                                    .split(' ')
-                                    .map((n) => n[0])
-                                    .join('')}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Profile Info */}
-                      <div className="p-5 space-y-3 bg-black/40 backdrop-blur-sm h-[calc(100%-350px)] overflow-y-auto">
-                        <div className="text-center">
-                          <h3 className="text-4xl font-bold text-white tracking-tight mb-1 drop-shadow-lg">
-                            {expandedCard.name}
-                          </h3>
-                          <div className="text-white text-base font-semibold">{expandedCard.age} years old</div>
-                        </div>
-
-                        <div className="space-y-2 text-center">
-                          <div className="text-white text-lg font-semibold drop-shadow-md">
-                            {expandedCard.major}
-                          </div>
-                          <div className="text-white text-lg font-semibold drop-shadow-md">
-                            {expandedCard.company}
-                          </div>
-                          <div className="text-white text-base flex items-center justify-center gap-2 font-medium">
-                            <span>📍</span>
-                            {expandedCard.location}
-                          </div>
-                        </div>
-
-                        {/* Bio */}
-                        <div className="pt-3 border-t border-white/20">
-                          <p className="text-white text-lg leading-relaxed text-center font-medium drop-shadow-md px-2">
-                            {expandedCard.bio}
-                          </p>
-                        </div>
-
-                        {/* Interests */}
-                        <div className="pt-3">
-                          <div className="text-white text-sm mb-2 text-center font-semibold">Interests</div>
-                          <div className="flex flex-wrap gap-2 justify-center">
-                            {expandedCard.interests.map((interest, idx) => (
-                              <span
-                                key={idx}
-                                className="px-4 py-2 rounded-full bg-white/20 text-white text-sm font-semibold border border-white/30 drop-shadow-md"
-                              >
-                                {interest}
-                              </span>
+                  card={card}
+                  onRemoveClick={handleRemoveClick}
+                />
                             ))}
                           </div>
-                        </div>
-
-                        {/* Experience */}
-                        <div className="pt-3 text-center border-t border-white/20">
-                          <div className="text-white/90 text-sm mb-1 font-semibold">Experience</div>
-                          <div className="text-white text-base font-bold">{expandedCard.experience}</div>
-                        </div>
-
-                        {/* Email and LinkedIn */}
-                        {expandedCard.email && expandedCard.linkedin && (
-                          <div className="pt-4 mt-4 border-t-2 border-white/30 space-y-4">
-                            <div className="text-center">
-                              <div className="text-white text-lg font-bold mb-3">Contact Information</div>
-                              
-                              {/* Email */}
-                              <div className="mb-3">
-                                <a
-                                  href={`mailto:${expandedCard.email}`}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-full font-semibold hover:from-blue-600 hover:to-cyan-600 transition-all duration-200 hover:scale-105 shadow-lg"
-                                >
-                                  <span>📧</span>
-                                  <span>{expandedCard.email}</span>
-                                </a>
-                              </div>
-
-                              {/* LinkedIn */}
-                              <div className="mb-3">
-                                <a
-                                  href={expandedCard.linkedin}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-full font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 hover:scale-105 shadow-lg"
-                                >
-                                  <span>💼</span>
-                                  <span>LinkedIn Profile</span>
-                                </a>
-                              </div>
-
-                              {/* Remove Button */}
-                              <div>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleRemoveClick(expandedCard);
-                                  }}
-                                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-full font-semibold hover:from-red-600 hover:to-red-700 transition-all duration-200 hover:scale-105 shadow-lg"
-                                >
-                                  <span>🗑️</span>
-                                  <span>Remove from Roster</span>
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                );
-              })()}
-            </>
           )}
         </div>
       </div>
@@ -557,13 +398,13 @@ const Roster = ({ likedCards, onRemoveCard }) => {
               <div className="flex gap-4 justify-center">
                 <button
                   onClick={cancelRemove}
-                  className="px-6 py-3 bg-white/10 text-white rounded-full font-semibold hover:bg-white/20 transition-all duration-200 hover:scale-105"
+                  className="px-6 py-3 bg-white/10 text-white rounded-full font-semibold hover:bg-white/20 transition-all duration-200 hover:scale-105 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={confirmRemove}
-                  className="px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-full font-semibold hover:from-red-600 hover:to-red-700 transition-all duration-200 hover:scale-105 shadow-lg"
+                  className="px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-full font-semibold hover:from-red-600 hover:to-red-700 transition-all duration-200 hover:scale-105 shadow-lg cursor-pointer"
                 >
                   Remove
                 </button>
