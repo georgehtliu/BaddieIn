@@ -1,6 +1,8 @@
 import { useCallback, useState, useEffect } from 'react';
 import Particles from 'react-particles';
 import { loadSlim } from 'tsparticles-slim';
+import PackOpening from './PackOpening';
+import Roster from './Roster';
 
 const ProfileCard = () => {
   const [isFlipped, setIsFlipped] = useState(false);
@@ -187,7 +189,7 @@ const ProfileCard = () => {
   );
 };
 
-export default function DatingLandingPage() {
+const DatingLandingPage = () => {
   const particlesInit = useCallback(async (engine) => {
     await loadSlim(engine);
   }, []);
@@ -319,6 +321,72 @@ export default function DatingLandingPage() {
         </div>
       </div>
 
+    </div>
+  );
+};
+
+// Main App Component with Tabs
+export default function App() {
+  const [activeTab, setActiveTab] = useState('home');
+  const [likedCards, setLikedCards] = useState([]);
+
+  const handleCardLiked = (card) => {
+    setLikedCards((prev) => [...prev, card]);
+  };
+
+  const handleCardRemoved = (card) => {
+    setLikedCards((prev) => prev.filter((c) => c.id !== card.id));
+  };
+
+  return (
+    <div className="h-screen w-screen bg-black text-white overflow-hidden fixed inset-0">
+      {/* Tab Navigation */}
+      <div className="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-sm border-b border-white/10">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex gap-4">
+          <button
+            onClick={() => setActiveTab('home')}
+            className={`px-6 py-3 rounded-full font-semibold transition-all duration-300 ${
+              activeTab === 'home'
+                ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-lg shadow-pink-500/50'
+                : 'bg-white/10 text-white/70 hover:bg-white/20'
+            }`}
+          >
+            Home
+          </button>
+          <button
+            onClick={() => setActiveTab('pack')}
+            className={`px-6 py-3 rounded-full font-semibold transition-all duration-300 ${
+              activeTab === 'pack'
+                ? 'bg-gradient-to-r from-yellow-500 via-orange-500 to-red-500 text-white shadow-lg shadow-yellow-500/50'
+                : 'bg-white/10 text-white/70 hover:bg-white/20'
+            }`}
+          >
+            Pack Opening
+          </button>
+          <button
+            onClick={() => setActiveTab('roster')}
+            className={`px-6 py-3 rounded-full font-semibold transition-all duration-300 relative ${
+              activeTab === 'roster'
+                ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg shadow-green-500/50'
+                : 'bg-white/10 text-white/70 hover:bg-white/20'
+            }`}
+          >
+            Roster
+            {likedCards.length > 0 && (
+              <span className="absolute -top-2 -right-2 bg-pink-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+                {likedCards.length}
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Tab Content */}
+      <div className="h-full pt-20">
+        {activeTab === 'home' && <DatingLandingPage />}
+        {activeTab === 'pack' && <PackOpening onCardLiked={handleCardLiked} />}
+        {activeTab === 'roster' && <Roster likedCards={likedCards} onRemoveCard={handleCardRemoved} />}
+      </div>
     </div>
   );
 }
