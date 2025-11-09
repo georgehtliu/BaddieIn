@@ -440,7 +440,14 @@ async def phantombuster_search_cache(
   session_cookie = os.getenv("PHANTOMBUSTER_SESSION_COOKIE")
 
   if not api_key or not agent_id:
-    raise HTTPException(status_code=500, detail="PhantomBuster credentials are not configured.")
+    raise HTTPException(
+      status_code=500,
+      detail="PhantomBuster credentials are not configured. Please set PHANTOMBUSTER_API_KEY and PHANTOMBUSTER_SEARCH_AGENT_ID in your .env file. See PHANTOMBUSTER_QUICK_START.md for instructions."
+    )
+  
+  # Validate API key format (should be a non-empty string)
+  if not isinstance(api_key, str) or len(api_key.strip()) < 10:
+    logger.warning("PHANTOMBUSTER_API_KEY appears to be invalid (too short or empty)")
 
   if not session_cookie:
     raise HTTPException(status_code=500, detail="PhantomBuster session cookie is not configured (missing PHANTOMBUSTER_SESSION_COOKIE).")
@@ -473,8 +480,27 @@ async def phantombuster_search_cache(
       "id": agent_id,
       "argument": _build_search_argument(search_request, session_cookie)
     }
-    launch_resp = await client.post(f"{PHANTOMBUSTER_BASE_URL}/agents/launch", headers=launch_headers, json=launch_body)
-    launch_resp.raise_for_status()
+    try:
+      launch_resp = await client.post(f"{PHANTOMBUSTER_BASE_URL}/agents/launch", headers=launch_headers, json=launch_body)
+      launch_resp.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+      if exc.response.status_code == 401:
+        error_detail = exc.response.text or "Unauthorized"
+        logger.error("PhantomBuster API authentication failed (401). Check your PHANTOMBUSTER_API_KEY and PHANTOMBUSTER_SEARCH_AGENT_ID. Response: %s", error_detail)
+        raise HTTPException(
+          status_code=401,
+          detail=f"PhantomBuster API authentication failed. Please check your PHANTOMBUSTER_API_KEY and PHANTOMBUSTER_SEARCH_AGENT_ID in your .env file. Error: {error_detail}"
+        ) from exc
+      else:
+        logger.error("PhantomBuster API error: %s", exc.response.text)
+        raise HTTPException(
+          status_code=exc.response.status_code,
+          detail=f"PhantomBuster API error: {exc.response.text}"
+        ) from exc
+    except httpx.RequestError as exc:
+      logger.error("PhantomBuster network error: %s", exc)
+      raise HTTPException(status_code=502, detail=f"PhantomBuster network error: {exc}") from exc
+    
     launch_data = launch_resp.json()
     container_id = str(launch_data.get("containerId") or launch_data.get("data", {}).get("id") or "")
     if not container_id:

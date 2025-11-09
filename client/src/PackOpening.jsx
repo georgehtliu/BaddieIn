@@ -7,6 +7,117 @@ const rawApiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 const API_BASE_URL = rawApiBase.replace(/\/$/, '');
 const BEAUTY_SCORE_ENDPOINT = `${API_BASE_URL}/beauty-score`;
 
+// Custom Dropdown Component
+const CustomDropdown = ({ value, options, onChange, placeholder = 'Select an option...' }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  const handleSelect = (option) => {
+    onChange(option);
+    setIsOpen(false);
+  };
+
+  const displayValue = value || placeholder;
+
+  return (
+    <div className="relative dropdown-wrapper" ref={dropdownRef} style={{ zIndex: 1000 }}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full bg-white/5 text-white text-xl md:text-2xl border-2 border-white/20 rounded-2xl p-4 pr-12 focus:outline-none transition-all duration-300 cursor-pointer hover:bg-white/10 flex items-center justify-between"
+        style={{
+          height: '64px',
+          minHeight: '64px',
+          maxHeight: '64px',
+          boxSizing: 'border-box'
+        }}
+      >
+        <span className={value ? 'text-white' : 'text-white/50'}>{displayValue}</span>
+        <svg 
+          className={`w-6 h-6 text-white/60 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
+          fill="none" 
+          stroke="currentColor" 
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      
+      {isOpen && (
+        <div 
+          className="absolute top-full left-0 right-0 mt-2 bg-white/5 border-2 border-white/20 rounded-2xl shadow-2xl backdrop-blur-sm"
+          style={{
+            zIndex: 10001,
+            position: 'absolute'
+          }}
+          onWheel={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+        >
+          <div 
+            className="overflow-y-auto custom-scrollbar"
+            style={{
+              maxHeight: '250px',
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              overscrollBehavior: 'contain'
+            }}
+            onWheel={(e) => e.stopPropagation()}
+            onTouchMove={(e) => e.stopPropagation()}
+          >
+            {options && options.length > 0 ? (
+              options.map((option, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => handleSelect(option)}
+                  className={`w-full text-left px-4 py-3 text-base text-white hover:bg-white/10 transition-colors duration-200 cursor-pointer ${
+                    value === option ? 'bg-white/15' : ''
+                  }`}
+                  style={{
+                    minHeight: '50px',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                >
+                  {option}
+                </button>
+              ))
+            ) : (
+              <div className="px-4 py-3 text-white/50 text-center">No options available</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Utility function to get roster exclusion set
+const getRosterNames = () => {
+  try {
+    const stored = localStorage.getItem('roster-names');
+    return stored ? new Set(JSON.parse(stored)) : new Set();
+  } catch {
+    return new Set();
+  }
+};
+
 // Enhanced sample cards data with more content
 const SAMPLE_CARDS = [
   {
@@ -677,7 +788,9 @@ const SwipeableCard = ({ card, onSwipe, isRevealed, isActive, onFlip, attractive
 const PackOpening = ({
   onCardLiked = null,
   cards: cardsProp = null,
-  fetchError = null
+  fetchError = null,
+  onFetchNewPack = null,
+  genderPreference = null
 }) => {
   const [packOpened, setPackOpened] = useState(false);
   const [currentPack, setCurrentPack] = useState([]);
@@ -686,52 +799,78 @@ const PackOpening = ({
   const [isRevealing, setIsRevealing] = useState(false);
   const [attractivenessScores, setAttractivenessScores] = useState({});
   const [isScoring, setIsScoring] = useState(false);
-  const [packCompleted, setPackCompleted] = useState(() => {
-    try {
-      return localStorage.getItem('daily-pack-claimed') === new Date().toISOString().slice(0, 10);
-    } catch {
-      return false;
-    }
-  });
+  const [isScoringPool, setIsScoringPool] = useState(false); // Track if we're scoring the pool
+  const [showCitySelection, setShowCitySelection] = useState(false);
+  const [selectedCity, setSelectedCity] = useState('');
+  const [isFetchingNewPack, setIsFetchingNewPack] = useState(false);
   const fetchRequestIdRef = useRef(0);
+  const packCreatedRef = useRef(false); // Track if pack has been created for current scoring session
+
+  const cityOptions = [
+    'Toronto',
+    'Ottawa',
+    'New York',
+    'San Francisco',
+    'London',
+    'Montreal',
+    'Waterloo',
+    'Guelph',
+    'Kingston'
+  ];
 
   const cardsPool = useMemo(() => {
+    // Get roster exclusion set to filter out people already in roster
+    const rosterNames = getRosterNames();
+    console.log('📋 Roster exclusion set:', Array.from(rosterNames));
+    
     if (Array.isArray(cardsProp) && cardsProp.length > 0) {
-      const sanitized = cardsProp.map((card, index) => {
-        const rawName = typeof card?.name === 'string' ? card.name.trim() : '';
-        const fallbackName = rawName || `LinkedIn Candidate ${index + 1}`;
-        const hasImage = typeof card?.image === 'string' && card.image.trim();
-        const imageUrl =
-          hasImage
-            ? card.image.trim()
-            : `https://ui-avatars.com/api/?name=${encodeURIComponent(fallbackName)}&background=111111&color=ff66cc`;
-        const rarity =
-          card?.rarity ||
-          (index === 0 ? 'legendary' : index === 1 ? 'epic' : index <= 3 ? 'rare' : 'common');
-        const headline = typeof card?.headline === 'string' ? card.headline : card?.bio;
-        const derivedInterests =
-          Array.isArray(card?.interests) && card.interests.length
-            ? card.interests
-            : headline
-                ?.split(/[,;•|]/)
-                .map((segment) => segment.trim())
-                .filter(Boolean)
-                .slice(0, 4) ?? [];
+      const sanitized = cardsProp
+        .map((card, index) => {
+          const rawName = typeof card?.name === 'string' ? card.name.trim() : '';
+          const fallbackName = rawName || `LinkedIn Candidate ${index + 1}`;
+          const hasImage = typeof card?.image === 'string' && card.image.trim();
+          const imageUrl =
+            hasImage
+              ? card.image.trim()
+              : `https://ui-avatars.com/api/?name=${encodeURIComponent(fallbackName)}&background=111111&color=ff66cc`;
+          const rarity =
+            card?.rarity ||
+            (index === 0 ? 'legendary' : index === 1 ? 'epic' : index <= 3 ? 'rare' : 'common');
+          const headline = typeof card?.headline === 'string' ? card.headline : card?.bio;
+          const derivedInterests =
+            Array.isArray(card?.interests) && card.interests.length
+              ? card.interests
+              : headline
+                  ?.split(/[,;•|]/)
+                  .map((segment) => segment.trim())
+                  .filter(Boolean)
+                  .slice(0, 4) ?? [];
 
-        return {
-          ...card,
-          id: card?.id ?? `search-card-${index}`,
-          name: fallbackName,
-          image: imageUrl,
-          rarity,
-          major: card?.major || headline || 'LinkedIn Search Result',
-          company: card?.company || headline || 'Open to opportunities',
-          bio: card?.bio || headline || '',
-          location: card?.location || '',
-          interests: derivedInterests,
-          linkedin: card?.linkedin || 'https://www.linkedin.com'
-        };
-      });
+          return {
+            ...card,
+            id: card?.id ?? `search-card-${index}`,
+            name: fallbackName,
+            image: imageUrl,
+            rarity,
+            major: card?.major || headline || 'LinkedIn Search Result',
+            company: card?.company || headline || 'Open to opportunities',
+            bio: card?.bio || headline || '',
+            location: card?.location || '',
+            interests: derivedInterests,
+            linkedin: card?.linkedin || 'https://www.linkedin.com'
+          };
+        })
+        .filter((card) => {
+          // Filter out cards that are already in the roster
+          const normalizedCardName = card.name.trim().toLowerCase();
+          const isInRoster = rosterNames.has(normalizedCardName);
+          if (isInRoster) {
+            console.log(`🚫 Filtering out ${card.name} - already in roster`);
+          }
+          return !isInRoster;
+        });
+
+      console.log(`✅ Filtered cards: ${cardsProp.length} → ${sanitized.length} (removed ${cardsProp.length - sanitized.length} roster members)`);
 
       if (sanitized.length < 5) {
         const needed = 5 - sanitized.length;
@@ -748,34 +887,87 @@ const PackOpening = ({
     return SAMPLE_CARDS;
   }, [cardsProp]);
 
+  // Track previous cardsProp to detect new pack arrival
+  const prevCardsLengthRef = useRef(cardsProp?.length || 0);
+  const prevFirstCardIdRef = useRef(cardsProp?.[0]?.id || null);
+  const shouldAutoOpenRef = useRef(false);
+  
   useEffect(() => {
-    if (Array.isArray(cardsProp)) {
-      setPackOpened(false);
-      setCurrentPack([]);
-      setCurrentCardIndex(0);
-      setRevealedCards([]);
-      setAttractivenessScores({});
-      setIsScoring(false);
-      setPackCompleted(false);
-      try {
-        localStorage.removeItem('daily-pack-claimed');
-      } catch {
-        // ignore storage errors
+    if (Array.isArray(cardsProp) && cardsProp.length > 0) {
+      const currentLength = cardsProp.length;
+      const currentFirstCardId = cardsProp[0]?.id;
+      
+      // Check if this is a new pack by comparing length and first card ID
+      const isNewPack = prevCardsLengthRef.current !== currentLength || 
+                        prevFirstCardIdRef.current !== currentFirstCardId;
+      
+      if (isNewPack) {
+        console.log('🆕 New pack detected! Auto-opening...', {
+          prevLength: prevCardsLengthRef.current,
+          currentLength,
+          prevFirstId: prevFirstCardIdRef.current,
+          currentFirstId: currentFirstCardId
+        });
+        
+        // Reset pack state when new cards arrive
+        setPackOpened(false);
+        setCurrentPack([]);
+        setCurrentCardIndex(0);
+        setRevealedCards([]);
+        setAttractivenessScores({});
+        setIsScoring(false);
+        setIsScoringPool(false);
+        setShowCitySelection(false);
+        setSelectedCity('');
+        packCreatedRef.current = false; // Reset pack creation flag
+        
+        // Update refs
+        prevCardsLengthRef.current = currentLength;
+        prevFirstCardIdRef.current = currentFirstCardId;
+        
+        // Mark that we should auto-open after cardsPool updates
+        shouldAutoOpenRef.current = true;
       }
+    } else if (!cardsProp || cardsProp.length === 0) {
+      // Reset refs when cards are cleared
+      prevCardsLengthRef.current = 0;
+      prevFirstCardIdRef.current = null;
     }
   }, [cardsProp]);
-
-  const resetDailyLock = useCallback(() => {
-    try {
-      localStorage.removeItem('daily-pack-claimed');
-    } catch {
-      // ignore storage errors
+  
+  // Auto-open pack when cardsPool is ready and we have new cards
+  useEffect(() => {
+    if (shouldAutoOpenRef.current && cardsPool.length > 0 && !packOpened) {
+      console.log('🚀 Auto-opening pack with', cardsPool.length, 'cards');
+      shouldAutoOpenRef.current = false;
+      // Small delay to ensure state is ready and cardsPool is fully updated
+      const timer = setTimeout(() => {
+        if (cardsPool.length > 0) {
+          console.log('📦 Opening pack now...');
+          openPack();
+        } else {
+          console.warn('⚠️ Cards pool is empty, cannot open pack');
+          // Retry once more after a longer delay
+          setTimeout(() => {
+            if (cardsPool.length > 0) {
+              console.log('🔄 Retrying pack open...');
+              openPack();
+            }
+          }, 500);
+        }
+      }, 400);
+      return () => clearTimeout(timer);
     }
-    setPackCompleted(false);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardsPool.length, packOpened]);
 
-  const fetchAttractivenessScores = useCallback(async (packCards, requestId) => {
-    setIsScoring(true);
+  const fetchAttractivenessScores = useCallback(async (packCards, requestId, isPoolScoring = false) => {
+    // Note: isScoringPool/isScoring should be set BEFORE calling this function
+    // This function only manages the state at the end
+    if (!isPoolScoring) {
+      setIsScoring(true);
+    }
+    
     await Promise.all(
       packCards.map(async (card) => {
         try {
@@ -852,8 +1044,13 @@ const PackOpening = ({
         }
       })
     );
+    
     if (requestId === fetchRequestIdRef.current) {
-      setIsScoring(false);
+      if (isPoolScoring) {
+        setIsScoringPool(false);
+      } else {
+        setIsScoring(false);
+      }
     }
   }, []);
 
@@ -926,54 +1123,161 @@ const PackOpening = ({
     detectRetina: true
   };
 
-  const openPack = () => {
-    if (packCompleted) {
-      return;
-    }
+  const openPack = async () => {
+    console.log('🎯 openPack called', { cardsPoolLength: cardsPool.length });
+    
     if (!cardsPool.length) {
       console.warn('No cards available to open a pack.');
       return;
     }
-    // Rarity order: legendary > epic > rare > common
-    const rarityOrder = { legendary: 4, epic: 3, rare: 2, common: 1 };
-    
-    // Find all cards with the highest rarity
-    const sortedByRarity = [...cardsPool].sort((a, b) => {
-      return rarityOrder[b.rarity] - rarityOrder[a.rarity];
-    });
-    
-    // Get the highest rarity value
-    const highestRarity = sortedByRarity[0]?.rarity ?? 'common';
-    
-    // Find all cards with the highest rarity
-    const highestRarityCards = cardsPool.filter(card => card.rarity === highestRarity);
-    
-    // Randomly select one card from the highest rarity tier
-    const bestCardSource = highestRarityCards.length ? highestRarityCards : cardsPool;
-    const bestCard = bestCardSource[Math.floor(Math.random() * bestCardSource.length)];
-    
-    // Get remaining cards (excluding the best card)
-    const remainingCards = cardsPool.filter(card => card.id !== bestCard.id);
-    
-    // Randomly select 4 cards from remaining
-    const shuffled = [...remainingCards].sort(() => Math.random() - 0.5);
-    const randomCards = shuffled.slice(0, Math.min(4, shuffled.length));
-    
-    // Create pack with best card at the end (index 4)
-    const pack = [...randomCards, bestCard].slice(0, Math.min(cardsPool.length, 5));
-    
-    setCurrentPack(pack);
-    setPackOpened(true);
-    setIsScoring(true);
+
+    // Reset state
+    setPackOpened(false); // Explicitly reset pack opened state
     setCurrentCardIndex(0);
     setRevealedCards([]);
     setIsRevealing(false);
+    setShowCitySelection(false);
+    setSelectedCity('');
     setAttractivenessScores({});
+    packCreatedRef.current = false; // Reset pack creation flag
+    
+    // Set loading state IMMEDIATELY so loading screen shows right away
+    setIsScoringPool(true);
+    setIsScoring(false);
+    
+    console.log('🔄 State reset, starting score fetch...');
 
+    // First, fetch attractiveness scores for all cards in the pool
+    console.log('📊 Fetching attractiveness scores for pool...', { poolSize: cardsPool.length });
+    
     const nextRequestId = fetchRequestIdRef.current + 1;
     fetchRequestIdRef.current = nextRequestId;
-    fetchAttractivenessScores(pack, nextRequestId);
+    
+    // Fetch scores for all cards in pool (pass true to indicate pool scoring)
+    await fetchAttractivenessScores(cardsPool, nextRequestId, true);
+    
+    console.log('✅ Finished fetching scores for pool');
   };
+
+  // Create pack once scores are available
+  useEffect(() => {
+    console.log('🔍 Pack creation useEffect triggered', {
+      cardsPoolLength: cardsPool.length,
+      isScoringPool,
+      packOpened,
+      packCreated: packCreatedRef.current,
+      scoresCount: Object.keys(attractivenessScores).length
+    });
+    
+    // Only create pack if we have cards, we're not currently scoring the pool, pack isn't opened yet, and we haven't already created a pack
+    if (cardsPool.length === 0 || isScoringPool || packOpened || packCreatedRef.current) {
+      console.log('⏸️ Pack creation skipped:', {
+        reason: cardsPool.length === 0 ? 'no cards' : 
+                isScoringPool ? 'scoring pool' : 
+                packOpened ? 'pack opened' : 
+                'pack already created'
+      });
+      return;
+    }
+
+    // Check if we have enough scores to make a decision
+    // We need at least some scores to order by attractiveness
+    const cardsWithScores = cardsPool.filter(card => {
+      const score = attractivenessScores[card.id];
+      return score !== undefined && score !== null;
+    });
+
+    // If we don't have scores yet, wait
+    if (cardsWithScores.length === 0 && Object.keys(attractivenessScores).length === 0) {
+      return;
+    }
+
+    // If we're still waiting for scores, check if we have enough
+    // We'll proceed once scoring is complete (isScoringPool is false) or we have at least 5 scores
+    const totalScored = Object.keys(attractivenessScores).length;
+    if (isScoringPool) {
+      console.log('⏳ Still scoring pool, waiting...', { totalScored });
+      return; // Still scoring pool, wait
+    }
+    
+    // If we're still scoring individual cards but have enough scores, proceed
+    if (isScoring && totalScored < Math.min(5, cardsPool.length)) {
+      console.log('⏳ Still scoring cards, waiting for more...', { totalScored, needed: Math.min(5, cardsPool.length) });
+      return; // Still scoring and don't have enough yet
+    }
+
+    // Only proceed if we have at least one card with a score
+    if (cardsWithScores.length === 0) {
+      return;
+    }
+
+    console.log('🎴 Creating pack with attractiveness scores...', {
+      totalCards: cardsPool.length,
+      cardsWithScores: cardsWithScores.length,
+      totalScored
+    });
+    
+    // Get roster exclusion set
+    const rosterNames = getRosterNames();
+    
+    // Filter out cards in roster and get their scores
+    const availableCards = cardsPool
+      .map(card => {
+        const normalizedCardName = card.name.trim().toLowerCase();
+        const isInRoster = rosterNames.has(normalizedCardName);
+        if (isInRoster) {
+          return null;
+        }
+        const score = attractivenessScores[card.id];
+        return {
+          card,
+          score: score !== undefined && score !== null ? score : 0 // Default to 0 if no score
+        };
+      })
+      .filter(item => item !== null);
+
+    if (availableCards.length === 0) {
+      console.warn('No available cards after filtering roster');
+      return;
+    }
+
+    // Sort by score (highest first)
+    availableCards.sort((a, b) => b.score - a.score);
+
+    // Get the highest scored card (will be at position 4)
+    const highestScoredCard = availableCards[0].card;
+
+    // Get remaining cards (excluding the highest scored one)
+    const remainingCards = availableCards.slice(1).map(item => item.card);
+
+    // Randomly shuffle the remaining cards for positions 0-3
+    const shuffled = [...remainingCards].sort(() => Math.random() - 0.5);
+    const randomCards = shuffled.slice(0, Math.min(4, shuffled.length));
+
+    // Create pack with highest scored card at the end (index 4)
+    const pack = [...randomCards, highestScoredCard].slice(0, Math.min(availableCards.length, 5));
+
+    console.log('📦 Pack created:', {
+      packSize: pack.length,
+      highestScored: {
+        name: highestScoredCard.name,
+        score: attractivenessScores[highestScoredCard.id],
+        position: pack.length - 1
+      },
+      otherCards: randomCards.map(c => ({
+        name: c.name,
+        score: attractivenessScores[c.id]
+      }))
+    });
+
+    console.log('✅ Setting pack state...', { packLength: pack.length });
+    setCurrentPack(pack);
+    setPackOpened(true);
+    setIsScoring(false);
+    setIsScoringPool(false); // Ensure scoring pool is also false
+    packCreatedRef.current = true; // Mark that pack has been created
+    console.log('✅ Pack state set, packOpened should be true now');
+  }, [cardsPool, attractivenessScores, isScoringPool, isScoring, packOpened]);
 
   const handleSwipe = (direction) => {
     if (currentCardIndex >= currentPack.length) return;
@@ -1004,17 +1308,8 @@ const PackOpening = ({
         console.log(`  📋 Next card will be: ${currentPack[nextIndex]?.name || 'N/A'}`);
       }
       if (nextIndex >= currentPack.length) {
-        // All cards processed
-        try {
-          const today = new Date().toISOString().slice(0, 10);
-          localStorage.setItem('daily-pack-claimed', today);
-        } catch {
-          // ignore storage errors
-        }
-        setPackCompleted(true);
-        setTimeout(() => {
-          setPackOpened(false);
-        }, 1000);
+        // All cards processed - show city selection
+        setShowCitySelection(true);
       }
       return nextIndex;
     });
@@ -1043,6 +1338,38 @@ const PackOpening = ({
     setRevealedCards([]);
     setCurrentPack([]);
     setIsRevealing(false);
+    setShowCitySelection(false);
+    setSelectedCity('');
+  };
+
+  const handleFetchNewPack = useCallback(async (city) => {
+    if (!city || !onFetchNewPack) {
+      console.warn('⚠️ Cannot fetch new pack: missing city or callback', { city, hasCallback: !!onFetchNewPack });
+      return;
+    }
+    
+    console.log('🌍 Fetching new pack for city:', city, 'with gender preference:', genderPreference);
+    setIsFetchingNewPack(true);
+    setShowCitySelection(false);
+    
+    try {
+      // Pass both city and gender preference to the fetch function
+      await onFetchNewPack(city, genderPreference);
+      console.log('✅ New pack fetched successfully, waiting for cards to update...');
+      // Force the shouldAutoOpen flag to ensure pack opens
+      shouldAutoOpenRef.current = true;
+    } catch (error) {
+      console.error('❌ Error fetching new pack:', error);
+      setShowCitySelection(true); // Show city selection again on error
+      // Error will be handled by fetchError prop from parent
+    } finally {
+      setIsFetchingNewPack(false);
+    }
+  }, [onFetchNewPack, genderPreference]);
+
+  const handleCitySelect = (city) => {
+    setSelectedCity(city);
+    // Don't auto-advance - user must click the button to open new pack
   };
 
   const currentCard = currentCardIndex < currentPack.length ? currentPack[currentCardIndex] : null;
@@ -1068,107 +1395,97 @@ const PackOpening = ({
             {fetchError}
           </div>
         )}
-        {!packOpened ? (
-          packCompleted ? (
-            // Pack completed screen
-            <div className="text-center space-y-8">
-              <h1 className="text-6xl md:text-8xl font-bold mb-6 text-white drop-shadow-2xl">
-                No More Cards Today
-              </h1>
-              <p className="text-xl md:text-2xl mb-10 text-white/80 drop-shadow-lg max-w-2xl mx-auto">
-                You've already opened today's pack. Come back tomorrow for fresh matches!
-              </p>
-              <div className="space-y-4 flex flex-col items-center">
-                <div className="text-6xl">🕒</div>
-                <button
-                  onClick={resetDailyLock}
-                  className="px-6 py-3 rounded-full bg-white/10 text-white/80 hover:bg-white/20 transition-all"
-                >
-                  Unlock another pack for testing
-                </button>
-              </div>
-            </div>
-          ) : (
-            // Pack selection screen
-            <div className="text-center space-y-8">
-              <h1 className="text-6xl md:text-8xl font-bold mb-6 text-white drop-shadow-2xl animate-fade-in">
-                Open Your First Pack
-              </h1>
-              <p className="text-xl md:text-2xl mb-10 text-white/80 drop-shadow-lg max-w-2xl mx-auto">
-                Get 5 new matches today! Cards will reveal one by one.
-              </p>
-              <div className="relative inline-block">
-                {/* Multiple dramatic glow layers */}
-                <div className="absolute inset-0 rounded-2xl bg-pink-500 blur-3xl opacity-80 animate-pulse-glow"></div>
-                <div className="absolute inset-0 rounded-2xl bg-purple-400 blur-2xl opacity-60 animate-pulse-glow-delayed"></div>
-                <div className="absolute -inset-2 rounded-2xl bg-pink-400 blur-xl opacity-50 animate-pulse-glow-slow"></div>
-                <div className="absolute -inset-4 rounded-2xl bg-purple-500 blur-2xl opacity-30 animate-pulse-glow"></div>
-                
-                {/* Shimmer effect overlay */}
-                <div className="absolute inset-0 rounded-2xl overflow-hidden">
-                  <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent transform -skew-x-12"></div>
-                </div>
-                
-                {/* 3D Pack Box Visual */}
-                <div className="absolute -top-24 left-1/2 transform -translate-x-1/2 pointer-events-none z-0">
-                  <div className="relative w-40 h-40 animate-float">
-                    {/* Box shadow */}
-                    <div className="absolute inset-0 bg-black/40 blur-3xl transform translate-y-12 scale-150"></div>
-                    {/* Glowing box */}
-                    <div className="relative w-full h-full">
-                      {/* Main box with 3D effect */}
-                      <div className="absolute inset-0 bg-gradient-to-br from-pink-400 via-purple-500 to-pink-600 rounded-xl shadow-2xl border-4 border-pink-300 transform rotate-3 perspective-1000">
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <span className="text-7xl drop-shadow-2xl">📦</span>
-                        </div>
-                        {/* Shine overlay */}
-                        <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-transparent rounded-xl"></div>
-                        {/* Top highlight */}
-                        <div className="absolute top-0 left-0 right-0 h-1/3 bg-gradient-to-b from-white/40 to-transparent rounded-t-xl"></div>
-                      </div>
-                      {/* Glow rings */}
-                      <div className="absolute -inset-4 bg-pink-400/30 rounded-xl blur-xl animate-pulse"></div>
-                      <div className="absolute -inset-8 bg-purple-400/20 rounded-xl blur-2xl animate-pulse" style={{ animationDelay: '0.5s' }}></div>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Pack button */}
-                <button
-                  onClick={openPack}
-                  className="relative bg-gradient-to-r from-pink-500 via-purple-500 to-pink-600 text-white px-20 py-10 rounded-2xl text-4xl font-bold transition-all duration-300 shadow-[0_0_40px_rgba(236,72,153,0.8),0_0_80px_rgba(168,85,247,0.6),inset_0_2px_10px_rgba(255,255,255,0.3)] hover:shadow-[0_0_60px_rgba(236,72,153,1),0_0_120px_rgba(168,85,247,0.8),inset_0_2px_15px_rgba(255,255,255,0.5)] hover:scale-110 active:scale-95 transform hover:-translate-y-1 border-2 border-pink-300/50 overflow-hidden group cursor-pointer"
-                >
-                  {/* Button shine effect */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-                  
-                  {/* Button content */}
-                  <div className="relative z-10 flex items-center justify-center gap-4">
-                    <span className="text-5xl animate-bounce-slow">✨</span>
-                    <span className="tracking-wide">OPEN YOUR PACK</span>
-                    <span className="text-5xl animate-bounce-slow" style={{ animationDelay: '0.2s' }}>✨</span>
-                  </div>
-                  
-                  {/* Sparkle particles */}
-                  <div className="absolute inset-0 pointer-events-none">
-                    <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-pink-300 rounded-full animate-sparkle opacity-80"></div>
-                    <div className="absolute top-3/4 right-1/4 w-2 h-2 bg-purple-300 rounded-full animate-sparkle opacity-80" style={{ animationDelay: '0.3s' }}></div>
-                    <div className="absolute bottom-1/4 left-1/2 w-2 h-2 bg-pink-400 rounded-full animate-sparkle opacity-80" style={{ animationDelay: '0.6s' }}></div>
-                  </div>
-                </button>
-              </div>
-            </div>
-          )
-        ) : isScoring ? (
+        {(() => {
+          console.log('🎨 RENDER CHECK:', { 
+            packOpened, 
+            currentPackLength: currentPack.length, 
+            isScoring, 
+            isScoringPool,
+            showing: (isScoring || isScoringPool) ? 'loading' : !packOpened ? 'button' : packOpened && currentPack.length > 0 ? 'pack' : 'unknown'
+          });
+          return null;
+        })()}
+        {(isScoring || isScoringPool) ? (
           <div className="flex flex-col items-center justify-center space-y-6">
             <div className="relative">
               <div className="w-24 h-24 border-4 border-pink-400 border-t-transparent rounded-full animate-spin"></div>
               <div className="absolute inset-0 flex items-center justify-center text-3xl">📊</div>
             </div>
-            <div className="text-xl text-white/80">Scoring your pack...</div>
+            <div className="text-xl text-white/80">
+              {isScoringPool ? 'Scoring cards in pool...' : 'Scoring your pack...'}
+            </div>
           </div>
-        ) : (
+        ) : !packOpened ? (
+          <div className="text-center space-y-8">
+            <h1 className="text-6xl md:text-8xl font-bold mb-6 text-white drop-shadow-2xl animate-fade-in">
+              Open Your Pack
+            </h1>
+            <p className="text-xl md:text-2xl mb-10 text-white/80 drop-shadow-lg max-w-2xl mx-auto">
+              Get 5 new matches! Cards will reveal one by one.
+            </p>
+            <div className="relative inline-block">
+              {/* Multiple dramatic glow layers */}
+              <div className="absolute inset-0 rounded-2xl bg-pink-500 blur-3xl opacity-80 animate-pulse-glow"></div>
+              <div className="absolute inset-0 rounded-2xl bg-purple-400 blur-2xl opacity-60 animate-pulse-glow-delayed"></div>
+              <div className="absolute -inset-2 rounded-2xl bg-pink-400 blur-xl opacity-50 animate-pulse-glow-slow"></div>
+              <div className="absolute -inset-4 rounded-2xl bg-purple-500 blur-2xl opacity-30 animate-pulse-glow"></div>
+              
+              {/* Shimmer effect overlay */}
+              <div className="absolute inset-0 rounded-2xl overflow-hidden">
+                <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent transform -skew-x-12"></div>
+              </div>
+              
+              {/* 3D Pack Box Visual */}
+              <div className="absolute -top-24 left-1/2 transform -translate-x-1/2 pointer-events-none z-0">
+                <div className="relative w-40 h-40 animate-float">
+                  {/* Box shadow */}
+                  <div className="absolute inset-0 bg-black/40 blur-3xl transform translate-y-12 scale-150"></div>
+                  {/* Glowing box */}
+                  <div className="relative w-full h-full">
+                    {/* Main box with 3D effect */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-pink-400 via-purple-500 to-pink-600 rounded-xl shadow-2xl border-4 border-pink-300 transform rotate-3 perspective-1000">
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-7xl drop-shadow-2xl">📦</span>
+                      </div>
+                      {/* Shine overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-transparent rounded-xl"></div>
+                      {/* Top highlight */}
+                      <div className="absolute top-0 left-0 right-0 h-1/3 bg-gradient-to-b from-white/40 to-transparent rounded-t-xl"></div>
+                    </div>
+                    {/* Glow rings */}
+                    <div className="absolute -inset-4 bg-pink-400/30 rounded-xl blur-xl animate-pulse"></div>
+                    <div className="absolute -inset-8 bg-purple-400/20 rounded-xl blur-2xl animate-pulse" style={{ animationDelay: '0.5s' }}></div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Pack button */}
+              <button
+                onClick={openPack}
+                className="relative bg-gradient-to-r from-pink-500 via-purple-500 to-pink-600 text-white px-20 py-10 rounded-2xl text-4xl font-bold transition-all duration-300 shadow-[0_0_40px_rgba(236,72,153,0.8),0_0_80px_rgba(168,85,247,0.6),inset_0_2px_10px_rgba(255,255,255,0.3)] hover:shadow-[0_0_60px_rgba(236,72,153,1),0_0_120px_rgba(168,85,247,0.8),inset_0_2px_15px_rgba(255,255,255,0.5)] hover:scale-110 active:scale-95 transform hover:-translate-y-1 border-2 border-pink-300/50 overflow-hidden group cursor-pointer"
+              >
+                {/* Button shine effect */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                
+                {/* Button content */}
+                <div className="relative z-10 flex items-center justify-center gap-4">
+                  <span className="text-5xl animate-bounce-slow">✨</span>
+                  <span className="tracking-wide">OPEN YOUR PACK</span>
+                  <span className="text-5xl animate-bounce-slow" style={{ animationDelay: '0.2s' }}>✨</span>
+                </div>
+                
+                {/* Sparkle particles */}
+                <div className="absolute inset-0 pointer-events-none">
+                  <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-pink-300 rounded-full animate-sparkle opacity-80"></div>
+                  <div className="absolute top-3/4 right-1/4 w-2 h-2 bg-purple-300 rounded-full animate-sparkle opacity-80" style={{ animationDelay: '0.3s' }}></div>
+                  <div className="absolute bottom-1/4 left-1/2 w-2 h-2 bg-pink-400 rounded-full animate-sparkle opacity-80" style={{ animationDelay: '0.6s' }}></div>
+                </div>
+              </button>
+            </div>
+          </div>
+        ) : packOpened && currentPack.length > 0 ? (
           // Pack opening screen
-          <div className="w-full max-w-4xl h-full flex flex-col items-center justify-center">
+          <div className="w-full max-w-4xl h-full flex flex-col items-center justify-center" key="pack-opened">
             <div className="text-center mb-6">
               <h2 className="text-3xl font-bold mb-2">
                 Card {Math.min(currentCardIndex + 1, currentPack.length)} of {currentPack.length}
@@ -1248,24 +1565,39 @@ const PackOpening = ({
                 );
               })}
 
-              {/* No more cards message */}
-              {!hasMoreCards && isCurrentCardRevealed && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="text-4xl mb-4">✨</div>
-                    <div className="text-2xl font-bold mb-2">Pack Complete!</div>
-                    <button
-                      onClick={resetPack}
-                      className="mt-4 px-8 py-4 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-full font-semibold hover:scale-105 transition-transform shadow-lg"
-                    >
-                      Open Another Pack
-                    </button>
+              {/* City selection overlay when pack is complete */}
+              {showCitySelection && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm z-50">
+                  <div className="text-center space-y-8 max-w-2xl px-6">
+                    <h2 className="text-4xl md:text-5xl font-bold text-white mb-6 drop-shadow-2xl">
+                      Pack Complete!
+                    </h2>
+                    <p className="text-xl md:text-2xl mb-8 text-white/80 drop-shadow-lg">
+                      Choose a city to open another pack
+                    </p>
+                    <div className="max-w-md mx-auto">
+                      <CustomDropdown
+                        value={selectedCity}
+                        options={cityOptions}
+                        onChange={handleCitySelect}
+                        placeholder="Select a city..."
+                      />
+                    </div>
+                    {selectedCity && (
+                      <button
+                        onClick={() => handleFetchNewPack(selectedCity)}
+                        disabled={isFetchingNewPack}
+                        className="mt-6 px-12 py-4 bg-gradient-to-r from-pink-500 via-purple-500 to-pink-600 text-white rounded-full text-xl font-semibold hover:scale-105 transition-transform shadow-lg shadow-pink-500/50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        {isFetchingNewPack ? 'Loading...' : 'Open New Pack'}
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
             </div>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

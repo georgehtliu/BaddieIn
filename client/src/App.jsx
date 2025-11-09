@@ -1,7 +1,7 @@
 import { useCallback, useState, useEffect, useRef } from 'react';
 import Particles from 'react-particles';
 import { loadSlim } from 'tsparticles-slim';
-import { FaLinkedin } from 'react-icons/fa';
+import { FaLinkedin, FaLock } from 'react-icons/fa';
 import PackOpening from './PackOpening';
 import Roster from './Roster';
 import MessageComposer from './MessageComposer';
@@ -315,7 +315,11 @@ function DatingLandingPage({
   onPackCardsGenerated,
   onCardLiked,
   packFetchError = null,
-  onPackFetchError
+  onPackFetchError,
+  onSurveyComplete,
+  onGenderPreferenceSet,
+  onFetchNewPack = null,
+  genderPreference = null
 }) {
   const [mousePosition, setMousePosition] = useState({ x: 50, y: 50 });
   const [surveyStarted, setSurveyStarted] = useState(false);
@@ -355,43 +359,6 @@ function DatingLandingPage({
       'Waterloo',
       'Guelph',
       'Kingston'
-      ]
-    },
-    {
-      id: 'location',
-      question: 'Where are you located?',
-      type: 'dropdown',
-      options: [
-        'San Francisco, CA',
-        'New York, NY',
-        'Los Angeles, CA',
-        'Seattle, WA',
-        'Boston, MA',
-        'Chicago, IL',
-        'Austin, TX',
-        'Toronto, ON',
-        'Vancouver, BC',
-        'Montreal, QC',
-        'Waterloo, ON',
-        'Palo Alto, CA',
-        'Mountain View, CA',
-        'Menlo Park, CA',
-        'Cupertino, CA',
-        'Redmond, WA',
-        'Cambridge, MA',
-        'Pittsburgh, PA',
-        'Atlanta, GA',
-        'Portland, OR',
-        'Denver, CO',
-        'Washington, DC',
-        'Philadelphia, PA',
-        'Miami, FL',
-        'Houston, TX',
-        'Dallas, TX',
-        'Phoenix, AZ',
-        'San Diego, CA',
-        'London, UK',
-        'Other'
       ]
     },
     {
@@ -435,6 +402,9 @@ function DatingLandingPage({
       setShowPackOpening(true);
       return;
     }
+
+    // Store gender preference for future pack fetches
+    onGenderPreferenceSet?.(genderQueries);
 
     const originalCity = cityRaw.trim();
     const cityQuery = originalCity.toLowerCase();
@@ -568,6 +538,9 @@ function DatingLandingPage({
 
       const aggregatedCards = [];
       const seenProfiles = new Set();
+      // Get roster exclusion set to filter out people already in roster
+      const rosterNames = getRosterNames();
+      console.log('📋 Pack generation - Roster exclusion set:', Array.from(rosterNames));
 
       results.forEach(({ gender: genderOption, data }) => {
         const rows = Array.isArray(data?.csv_data) ? data.csv_data : [];
@@ -580,10 +553,20 @@ function DatingLandingPage({
           if (seenProfiles.has(dedupeKey)) {
             return;
           }
+          
+          // Filter out cards that are already in the roster
+          const normalizedCardName = card.name.trim().toLowerCase();
+          if (rosterNames.has(normalizedCardName)) {
+            console.log(`🚫 Skipping ${card.name} (normalized: "${normalizedCardName}") - already in roster`);
+            return;
+          }
+          
           seenProfiles.add(dedupeKey);
           aggregatedCards.push(card);
         });
       });
+
+      console.log(`✅ Pack generation complete: ${aggregatedCards.length} cards (filtered out ${rosterNames.size} roster members)`);
 
       if (!aggregatedCards.length) {
         throw new Error('No LinkedIn profiles returned for this search.');
@@ -592,9 +575,11 @@ function DatingLandingPage({
       onPackCardsGenerated?.(aggregatedCards);
       try {
         localStorage.removeItem('daily-pack-claimed');
+        localStorage.setItem('survey-completed', 'true');
       } catch {
         // ignore storage errors
       }
+      onSurveyComplete?.();
       setShowPackOpening(true);
     } catch (error) {
       console.error('Error fetching PhantomBuster search cache:', error);
@@ -606,7 +591,7 @@ function DatingLandingPage({
     } finally {
       setIsFetchingPack(false);
     }
-  }, [onPackCardsGenerated, onPackFetchError]);
+  }, [onPackCardsGenerated, onPackFetchError, onSurveyComplete, onGenderPreferenceSet]);
 
   const handleStartSurvey = () => {
     setShowSurvey(true); // Render survey in DOM first (at opacity-0)
@@ -836,6 +821,8 @@ function DatingLandingPage({
         cards={packCards}
         fetchError={packFetchError}
         onCardLiked={onCardLiked}
+        onFetchNewPack={onFetchNewPack}
+        genderPreference={genderPreference}
       />
     );
   }
@@ -1085,20 +1072,290 @@ function DatingLandingPage({
   );
 }
 
+// Utility functions for roster exclusion
+const getRosterNames = () => {
+  try {
+    const stored = localStorage.getItem('roster-names');
+    return stored ? new Set(JSON.parse(stored)) : new Set();
+  } catch {
+    return new Set();
+  }
+};
+
+const addToRosterNames = (name) => {
+  try {
+    const names = getRosterNames();
+    const normalizedName = name.trim().toLowerCase();
+    if (normalizedName) {
+      names.add(normalizedName);
+      localStorage.setItem('roster-names', JSON.stringify([...names]));
+    }
+  } catch (err) {
+    console.error('Failed to add name to roster exclusion:', err);
+  }
+};
+
+const removeFromRosterNames = (name) => {
+  try {
+    const names = getRosterNames();
+    const normalizedName = name.trim().toLowerCase();
+    if (normalizedName) {
+      names.delete(normalizedName);
+      localStorage.setItem('roster-names', JSON.stringify([...names]));
+    }
+  } catch (err) {
+    console.error('Failed to remove name from roster exclusion:', err);
+  }
+};
+
 // Main App Component with Tabs
 export default function App() {
   const [activeTab, setActiveTab] = useState('home');
   const [likedCards, setLikedCards] = useState([]);
   const [packCards, setPackCards] = useState([]);
   const [packFetchError, setPackFetchError] = useState(null);
+  const [userGenderPreference, setUserGenderPreference] = useState(null); // Store gender preference from survey
+  const [surveyCompleted, setSurveyCompleted] = useState(() => {
+    try {
+      return localStorage.getItem('survey-completed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  // Load existing liked cards from localStorage on mount and sync roster names
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('liked-cards');
+      if (stored) {
+        const cards = JSON.parse(stored);
+        setLikedCards(cards);
+        // Sync roster names with existing cards
+        cards.forEach((card) => {
+          if (card.name) {
+            addToRosterNames(card.name);
+          }
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load liked cards:', err);
+    }
+  }, []);
+
+  // Save liked cards to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('liked-cards', JSON.stringify(likedCards));
+    } catch (err) {
+      console.error('Failed to save liked cards:', err);
+    }
+  }, [likedCards]);
 
   const handleCardLiked = (card) => {
     setLikedCards((prev) => [...prev, card]);
+    // Add to roster exclusion set
+    if (card.name) {
+      const normalizedName = card.name.trim().toLowerCase();
+      console.log(`➕ Adding ${card.name} (normalized: "${normalizedName}") to roster exclusion set`);
+      addToRosterNames(card.name);
+      console.log('📋 Updated roster exclusion set:', Array.from(getRosterNames()));
+    }
   };
 
   const handleCardRemoved = (card) => {
     setLikedCards((prev) => prev.filter((c) => c.id !== card.id));
+    // DO NOT remove from roster exclusion set - keep them excluded from future packs
+    // This ensures deleted cards won't appear in new packs
+    console.log(`🗑️ Removed ${card.name} from roster, but keeping them excluded from future packs`);
   };
+
+  // Function to fetch a new pack based on city (for continuous pack opening)
+  const fetchNewPackByCity = useCallback(async (city, gender = null) => {
+    const cityQuery = city.trim().toLowerCase();
+    const originalCity = city.trim();
+    
+    // Use provided gender or fall back to stored preference, or default to both
+    const genderQueries = gender || userGenderPreference || ['man', 'woman'];
+
+    const mapRowToCard = (row, index, genderOption) => {
+      if (!row || typeof row !== 'object') {
+        return null;
+      }
+
+      const getString = (...keys) => {
+        for (const key of keys) {
+          const value = row?.[key];
+          if (typeof value === 'string' && value.trim()) {
+            return value.trim();
+          }
+        }
+        return undefined;
+      };
+
+      const firstName = getString('firstName', 'givenName');
+      const lastName = getString('lastName', 'familyName');
+
+      let fullName =
+        getString('fullName', 'name', 'profileFullName', 'profileName') ||
+        [firstName, lastName].filter(Boolean).join(' ').trim();
+      if (!fullName) {
+        fullName = `LinkedIn Candidate ${index + 1}`;
+      }
+
+      const location =
+        getString('location', 'locationName', 'geo', 'city', 'headlineLocation') || originalCity;
+
+      let headline = getString('headline', 'occupation', 'title', 'jobTitle', 'summary', 'position');
+      const companyRaw = getString('company', 'companyName', 'currentCompany', 'employer', 'organization');
+      let resolvedCompany = companyRaw;
+      if (!resolvedCompany && headline) {
+        const atMatch = headline.match(/\bat\s+(.+)/i);
+        if (atMatch) {
+          resolvedCompany = atMatch[1].trim();
+        }
+      }
+
+      const major =
+        getString('education', 'school', 'schoolName', 'degree', 'fieldOfStudy', 'program') ||
+        headline ||
+        'LinkedIn Search Result';
+
+      const linkedinUrl =
+        getString('profileUrl', 'linkedinUrl', 'publicProfileUrl', 'url', 'profile', 'profileLink') ||
+        'https://www.linkedin.com';
+
+      const imageUrl =
+        getString(
+          'profilePictureUrl',
+          'profilePictureUrlOriginal',
+          'pictureUrl',
+          'imageUrl',
+          'avatarUrl',
+          'profileImageUrl',
+          'photoUrl'
+        ) ||
+        `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=111111&color=ff66cc`;
+
+      let interests = [];
+      const skillsValue = row?.skills;
+      if (Array.isArray(skillsValue) && skillsValue.length) {
+        interests = skillsValue.map((skill) => String(skill)).filter(Boolean).slice(0, 4);
+      } else if (typeof skillsValue === 'string' && skillsValue.trim()) {
+        interests = skillsValue
+          .split(/[,;•|]/)
+          .map((skill) => skill.trim())
+          .filter(Boolean)
+          .slice(0, 4);
+      } else if (headline) {
+        interests = headline
+          .split(/[,;•|]/)
+          .map((segment) => segment.trim())
+          .filter(Boolean)
+          .slice(0, 4);
+      }
+
+      const rarity =
+        index === 0 ? 'legendary' : index === 1 ? 'epic' : index <= 3 ? 'rare' : 'common';
+
+      const bio =
+        getString('summary', 'about', 'description', 'bio') ||
+        headline ||
+        `Based in ${location}`;
+
+      const idCandidate =
+        getString('id', 'profileId', 'recordId') ||
+        row?.profileUrl ||
+        row?.publicProfileUrl ||
+        `phantom-${genderOption}-${index}-${Date.now()}`;
+
+      return {
+        id: String(idCandidate),
+        name: fullName,
+        major,
+        company: resolvedCompany || headline || 'Open to opportunities',
+        image: imageUrl,
+        rarity,
+        bio,
+        location,
+        interests,
+        email: getString('email', 'emailAddress'),
+        linkedin: linkedinUrl,
+        headline,
+        gender: genderOption
+      };
+    };
+
+    setPackFetchError(null);
+
+    try {
+      const results = await Promise.all(
+        genderQueries.map(async (genderOption) => {
+          const url = `http://127.0.0.1:8000/phantombuster/search-cache?query=${encodeURIComponent(
+            cityQuery
+          )}&gender=${genderOption}`;
+          const response = await fetch(url);
+          if (!response.ok) {
+            throw new Error(`Request failed with status ${response.status}`);
+          }
+          const data = await response.json();
+          console.log(`[PhantomBuster] city="${cityQuery}" gender="${genderOption}"`, data);
+          return { gender: genderOption, data };
+        })
+      );
+
+      const aggregatedCards = [];
+      const seenProfiles = new Set();
+      const rosterNames = getRosterNames();
+      console.log('📋 Pack generation - Roster exclusion set:', Array.from(rosterNames));
+
+      results.forEach(({ gender: genderOption, data }) => {
+        const rows = Array.isArray(data?.csv_data) ? data.csv_data : [];
+        rows.forEach((row) => {
+          const card = mapRowToCard(row, aggregatedCards.length, genderOption);
+          if (!card) {
+            return;
+          }
+          const dedupeKey = (card.linkedin || `${card.name}-${card.location}`).toLowerCase();
+          if (seenProfiles.has(dedupeKey)) {
+            return;
+          }
+          
+          const normalizedCardName = card.name.trim().toLowerCase();
+          if (rosterNames.has(normalizedCardName)) {
+            console.log(`🚫 Skipping ${card.name} (normalized: "${normalizedCardName}") - already in roster`);
+            return;
+          }
+          
+          seenProfiles.add(dedupeKey);
+          aggregatedCards.push(card);
+        });
+      });
+
+      console.log(`✅ Pack generation complete: ${aggregatedCards.length} cards (filtered out ${rosterNames.size} roster members)`);
+
+      if (!aggregatedCards.length) {
+        throw new Error('No LinkedIn profiles returned for this search.');
+      }
+
+      setPackCards(aggregatedCards);
+    } catch (error) {
+      console.error('Error fetching PhantomBuster search cache:', error);
+      const message =
+        error instanceof Error ? error.message : 'Unable to load search results.';
+      setPackFetchError(message);
+      setPackCards([]);
+      throw error;
+    }
+  }, [userGenderPreference]);
+
+  // Ensure activeTab is set to 'home' if survey not completed
+  // Lock all tabs until survey is completed
+  useEffect(() => {
+    if (!surveyCompleted) {
+      // Force activeTab to 'home' if survey not completed
+      setActiveTab('home');
+    }
+  }, [surveyCompleted]);
 
   return (
     <div className="h-screen w-screen bg-black text-white overflow-hidden fixed inset-0">
@@ -1116,38 +1373,53 @@ export default function App() {
             Home
           </button>
           <button
-            onClick={() => setActiveTab('pack')}
-            className={`px-6 py-3 rounded-full font-semibold transition-all duration-300 ${
-              activeTab === 'pack'
+            onClick={() => surveyCompleted && setActiveTab('pack')}
+            disabled={!surveyCompleted}
+            className={`px-6 py-3 rounded-full font-semibold transition-all duration-300 flex items-center gap-2 ${
+              !surveyCompleted
+                ? 'bg-white/5 text-white/30 cursor-not-allowed opacity-50'
+                : activeTab === 'pack'
                 ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-lg shadow-pink-500/50'
                 : 'bg-white/10 text-white/70 hover:bg-white/20'
             }`}
+            title={!surveyCompleted ? 'Complete the survey to unlock this tab' : ''}
           >
+            {!surveyCompleted && <FaLock className="text-sm" />}
             Pack Opening
           </button>
           <button
-            onClick={() => setActiveTab('roster')}
-            className={`px-6 py-3 rounded-full font-semibold transition-all duration-300 relative ${
-              activeTab === 'roster'
+            onClick={() => surveyCompleted && setActiveTab('roster')}
+            disabled={!surveyCompleted}
+            className={`px-6 py-3 rounded-full font-semibold transition-all duration-300 relative flex items-center gap-2 ${
+              !surveyCompleted
+                ? 'bg-white/5 text-white/30 cursor-not-allowed opacity-50'
+                : activeTab === 'roster'
                 ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-lg shadow-pink-500/50'
                 : 'bg-white/10 text-white/70 hover:bg-white/20'
             }`}
+            title={!surveyCompleted ? 'Complete the survey to unlock this tab' : ''}
           >
+            {!surveyCompleted && <FaLock className="text-sm" />}
             Roster
-            {likedCards.length > 0 && (
+            {surveyCompleted && likedCards.length > 0 && (
               <span className="absolute -top-2 -right-2 bg-pink-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
                 {likedCards.length}
               </span>
             )}
           </button>
           <button
-            onClick={() => setActiveTab('messages')}
-            className={`px-6 py-3 rounded-full font-semibold transition-all duration-300 ${
-              activeTab === 'messages'
+            onClick={() => surveyCompleted && setActiveTab('messages')}
+            disabled={!surveyCompleted}
+            className={`px-6 py-3 rounded-full font-semibold transition-all duration-300 flex items-center gap-2 ${
+              !surveyCompleted
+                ? 'bg-white/5 text-white/30 cursor-not-allowed opacity-50'
+                : activeTab === 'messages'
                 ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-lg shadow-pink-500/50'
                 : 'bg-white/10 text-white/70 hover:bg-white/20'
             }`}
+            title={!surveyCompleted ? 'Complete the survey to unlock this tab' : ''}
           >
+            {!surveyCompleted && <FaLock className="text-sm" />}
             💬 Messages
           </button>
         </div>
@@ -1162,17 +1434,27 @@ export default function App() {
             onCardLiked={handleCardLiked}
             packFetchError={packFetchError}
             onPackFetchError={setPackFetchError}
+            onSurveyComplete={() => setSurveyCompleted(true)}
+            onGenderPreferenceSet={setUserGenderPreference}
+            onFetchNewPack={fetchNewPackByCity}
+            genderPreference={userGenderPreference}
           />
         )}
-        {activeTab === 'pack' && (
+        {surveyCompleted && activeTab === 'pack' && (
           <PackOpening
             onCardLiked={handleCardLiked}
             cards={packCards}
             fetchError={packFetchError}
+            onFetchNewPack={fetchNewPackByCity}
+            genderPreference={userGenderPreference}
           />
         )}
-        {activeTab === 'roster' && <Roster likedCards={likedCards} onRemoveCard={handleCardRemoved} />}
-        {activeTab === 'messages' && <MessageComposer rosterCards={likedCards} />}
+        {surveyCompleted && activeTab === 'roster' && (
+          <Roster likedCards={likedCards} onRemoveCard={handleCardRemoved} />
+        )}
+        {surveyCompleted && activeTab === 'messages' && (
+          <MessageComposer rosterCards={likedCards} />
+        )}
       </div>
     </div>
   );

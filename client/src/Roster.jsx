@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import Particles from 'react-particles';
 import { loadSlim } from 'tsparticles-slim';
+import { FaLinkedin } from 'react-icons/fa';
 
 const Roster = ({ likedCards, onRemoveCard }) => {
   const [expandedCardId, setExpandedCardId] = useState(null);
@@ -291,6 +292,18 @@ const Roster = ({ likedCards, onRemoveCard }) => {
                       style={getScoreGradientStyle(card.score || card.attractivenessScore || 50)}
                     />
 
+                    {/* Delete button - always visible */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveClick(card);
+                      }}
+                      className="absolute top-4 right-4 z-50 w-10 h-10 rounded-full bg-red-500/80 hover:bg-red-600 text-white flex items-center justify-center text-lg font-bold transition-all duration-200 hover:scale-110 shadow-lg"
+                      title="Remove from roster"
+                    >
+                      🗑️
+                    </button>
+
                     {/* Close button for expanded card */}
                     {isExpanded && (
                       <button
@@ -359,7 +372,20 @@ const Roster = ({ likedCards, onRemoveCard }) => {
                         }`}>
                           {card.name}
                         </h3>
-                        <div className="text-white text-base font-semibold">{card.age} years old</div>
+                        {card.linkedin ? (
+                          <a
+                            href={card.linkedin}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-2 text-white text-base font-semibold hover:text-blue-400 transition-colors duration-200"
+                          >
+                            <FaLinkedin size={20} />
+                            <span>LinkedIn</span>
+                          </a>
+                        ) : (
+                          <div className="text-white/50 text-base font-semibold">No LinkedIn</div>
+                        )}
                       </div>
 
                       <div className="space-y-2 text-center">
@@ -525,7 +551,20 @@ const Roster = ({ likedCards, onRemoveCard }) => {
                           <h3 className="text-4xl font-bold text-white tracking-tight mb-1 drop-shadow-lg">
                             {expandedCard.name}
                           </h3>
-                          <div className="text-white text-base font-semibold">{expandedCard.age} years old</div>
+                          {expandedCard.linkedin ? (
+                            <a
+                              href={expandedCard.linkedin}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex items-center gap-2 text-white text-base font-semibold hover:text-blue-400 transition-colors duration-200"
+                            >
+                              <FaLinkedin size={20} />
+                              <span>LinkedIn</span>
+                            </a>
+                          ) : (
+                            <div className="text-white/50 text-base font-semibold">No LinkedIn</div>
+                          )}
                         </div>
 
                         <div className="space-y-2 text-center">
