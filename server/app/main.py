@@ -32,6 +32,29 @@ logger = logging.getLogger(__name__)
 PHANTOMBUSTER_BASE_URL = "https://api.phantombuster.com/api/v2"
 PHANTOMBUSTER_MAX_WAIT_SECONDS = 180
 PHANTOMBUSTER_POLL_INTERVAL_SECONDS = 5
+ABBREVIATION_QUERY_MAP: dict[str, str] = {
+  "uci": "uc irvine",
+  "ucr": "uc riverside",
+  "uw": "uwaterloo",
+  "stanfordu": "stanford",
+  "ubc": "university of british columbia",
+  "nyu": "new york university"
+}
+FULL_QUERY_TO_ABBREVIATIONS: dict[str, list[str]] = {}
+for _abbr, _full in ABBREVIATION_QUERY_MAP.items():
+  FULL_QUERY_TO_ABBREVIATIONS.setdefault(_full.strip().lower(), []).append(_abbr.strip().lower())
+QUERY_STOP_WORDS = {
+  "of",
+  "the",
+  "and",
+  "for",
+  "at",
+  "to",
+  "in",
+  "on",
+  "a",
+  "an"
+}
 # Configure Gemini API
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if GEMINI_API_KEY:
@@ -179,7 +202,7 @@ class PhantomProfile(BaseModel):
 
 class PhantomSearchRequest(BaseModel):
   query: str = Field(default="Waterloo girls", min_length=1, max_length=200)
-  limit: int = Field(default=50, ge=1, le=50)
+  limit: int = Field(default=50, ge=1, le=100)
   search_url: str | None = None
   category: str | None = None
   search_type: str | None = None
@@ -261,6 +284,12 @@ class SaveSearchResponse(BaseModel):
   created_at: datetime
 
 
+class AbbreviationSearchRequest(BaseModel):
+  abbreviation: str = Field(..., min_length=1, max_length=100)
+  limit: int = Field(default=80, ge=1, le=100)
+  gender: Literal["woman", "man"] | None = None
+
+
 def _infer_gender_from_name(name: str | None) -> Literal["woman", "man"] | None:
   if not name:
     return None
@@ -308,55 +337,312 @@ def _filter_rows_by_gender(rows: list[dict[str, Any]], gender: Literal["woman", 
   return filtered
 
 
+def _tokenize_query(value: str | None) -> set[str]:
+  if not value:
+    return set()
+  return {
+    token
+    for token in re.findall(r"[a-z0-9]+", value.lower())
+    if token and token not in QUERY_STOP_WORDS
+  }
+
+
+def _derive_query_terms(query: str | None) -> set[str]:
+  if not query:
+    return set()
+
+  normalized = query.strip().lower()
+  terms = _tokenize_query(normalized)
+
+  expanded = ABBREVIATION_QUERY_MAP.get(normalized)
+  if expanded:
+    terms.add(normalized)
+    terms.update(_tokenize_query(expanded))
+
+  inverse_matches = FULL_QUERY_TO_ABBREVIATIONS.get(normalized, [])
+  for abbreviation in inverse_matches:
+    terms.add(abbreviation)
+    terms.update(_tokenize_query(abbreviation))
+    expanded_value = ABBREVIATION_QUERY_MAP.get(abbreviation)
+    if expanded_value:
+      terms.update(_tokenize_query(expanded_value))
+
+  # If the query is an abbreviation itself, ensure we also include the abbreviation token
+  if normalized in ABBREVIATION_QUERY_MAP:
+    terms.add(normalized)
+
+  return {term for term in terms if term and len(term) >= 2}
+
+
+def _resolve_query_forms(raw_query: str) -> tuple[str, str, set[str]]:
+  trimmed = raw_query.strip()
+  normalized = trimmed.lower()
+  canonical = ABBREVIATION_QUERY_MAP.get(normalized, trimmed).strip()
+  canonical_lower = canonical.lower()
+
+  candidates: set[str] = {trimmed, normalized, canonical, canonical_lower}
+  abbreviations = FULL_QUERY_TO_ABBREVIATIONS.get(canonical_lower, [])
+  candidates.update(abbreviations)
+
+  # Also include expanded forms for each abbreviation alias
+  for abbr in abbreviations:
+    expanded = ABBREVIATION_QUERY_MAP.get(abbr)
+    if expanded:
+      candidates.add(expanded.strip())
+      candidates.add(expanded.strip().lower())
+
+  return canonical, canonical_lower, {candidate for candidate in candidates if candidate}
+
+
 def _filter_rows_by_query(rows: list[dict[str, Any]], query: str) -> list[dict[str, Any]]:
   """Filter rows to ensure at least one field contains query keywords."""
   if not query or not query.strip():
     return rows
-  
-  # Normalize query: lowercase and split into words
-  query_lower = query.strip().lower()
-  query_words = [word.strip() for word in query_lower.split() if word.strip()]
-  
-  if not query_words:
+
+  original_count = len(rows)
+  query_terms = _derive_query_terms(query)
+  if not query_terms:
     return rows
-  
+
   filtered: list[dict[str, Any]] = []
   for row in rows:
-    # Check relevant fields for query match
-    fields_to_check = [
-      "location",
-      "locationName",
-      "headline",
-      "occupation",
-      "company",
-      "currentCompany",
-      "fullName",
-      "name",
-      "profileFullName",
-      "profileName",
-      "bio",
-      "summary",
-      "about",
-      "description"
-    ]
-    
-    # Combine all field values into a searchable string
-    searchable_text = " ".join(
-      str(row.get(key, "")).lower()
-      for key in fields_to_check
-      if row.get(key)
-    )
-    
-    # Check if any query word appears in the searchable text
-    matches_query = any(word in searchable_text for word in query_words)
-    
-    if matches_query:
+    searchable_fragments: list[str] = []
+    if isinstance(row, dict):
+      for key, value in row.items():
+        if isinstance(value, str):
+          searchable_fragments.append(value.lower())
+        elif isinstance(value, list):
+          searchable_fragments.extend(
+            str(item).lower()
+            for item in value
+            if isinstance(item, (str, int, float))
+          )
+        elif isinstance(value, (int, float)):
+          searchable_fragments.append(str(value).lower())
+
+    searchable_text = " ".join(searchable_fragments)
+    if not searchable_text:
+      searchable_text = json.dumps(row, ensure_ascii=False).lower()
+
+    if any(term in searchable_text for term in query_terms):
       filtered.append(row)
     else:
       logger.debug("Filtered out row (no query match): %s", row.get("fullName") or row.get("name") or "unknown")
-  
-  logger.info("Query filter: %d rows -> %d rows (query: '%s')", len(rows), len(filtered), query)
-  return filtered
+
+  if filtered:
+    logger.info("Query filter: %d rows -> %d rows (query: '%s')", original_count, len(filtered), query)
+    return filtered
+
+  logger.info("Query filter yielded no matches; returning original %d rows (query: '%s')", original_count, query)
+  return rows
+
+
+async def _launch_phantombuster_query(
+  search_query: str,
+  *,
+  limit: int,
+  gender: Literal["woman", "man"] | None = None,
+  store_query: str | None = None,
+  requested_query: str | None = None
+) -> dict[str, Any]:
+  if mongo_collection is None:
+    raise HTTPException(status_code=500, detail="MongoDB is not configured.")
+
+  trimmed_search_query = search_query.strip()
+  if not trimmed_search_query:
+    raise HTTPException(status_code=400, detail="Query must be a non-empty string.")
+
+  store_query_label = (store_query or trimmed_search_query).strip()
+  store_query_value = store_query_label.lower()
+  if not store_query_value:
+    raise HTTPException(status_code=400, detail="Unable to determine storage query label.")
+
+  api_key = os.getenv("PHANTOMBUSTER_API_KEY")
+  agent_id = os.getenv("PHANTOMBUSTER_SEARCH_AGENT_ID")
+  session_cookie = os.getenv("PHANTOMBUSTER_SESSION_COOKIE")
+
+  if not api_key or not agent_id:
+    raise HTTPException(
+      status_code=500,
+      detail="PhantomBuster credentials are not configured. Please set PHANTOMBUSTER_API_KEY and PHANTOMBUSTER_SEARCH_AGENT_ID in your .env file. See PHANTOMBUSTER_QUICK_START.md for instructions."
+    )
+
+  if not isinstance(api_key, str) or len(api_key.strip()) < 10:
+    logger.warning("PHANTOMBUSTER_API_KEY appears to be invalid (too short or empty)")
+
+  if not session_cookie:
+    raise HTTPException(status_code=500, detail="PhantomBuster session cookie is not configured (missing PHANTOMBUSTER_SESSION_COOKIE).")
+
+  trimmed_limit = min(max(limit, 1), 100)
+  dynamic_search_url = f"https://www.linkedin.com/search/results/all/?keywords={quote_plus(trimmed_search_query)}&origin=GLOBAL_SEARCH_HEADER"
+  search_request = PhantomSearchRequest(
+    query=trimmed_search_query,
+    limit=trimmed_limit,
+    search_url=dynamic_search_url,
+    results_per_launch=trimmed_limit,
+    results_per_search=trimmed_limit
+  )
+
+  launch_headers = {
+    "X-Phantombuster-Key-1": api_key,
+    "Content-Type": "application/json"
+  }
+  fetch_headers = {
+    "X-Phantombuster-Key": api_key,
+    "accept": "application/json"
+  }
+
+  container_id: str | None = None
+  container_status: str | None = None
+  fetch_payload: dict[str, Any] = {}
+  csv_rows: list[dict[str, Any]] = []
+  raw_csv_rows: list[dict[str, Any]] = []
+  first_row: dict[str, Any] | None = None
+  csv_url: str | None = None
+  output_text = ""
+
+  async with httpx.AsyncClient(timeout=30.0) as client:
+    launch_body = {
+      "id": agent_id,
+      "argument": _build_search_argument(search_request, session_cookie)
+    }
+    try:
+      launch_resp = await client.post(f"{PHANTOMBUSTER_BASE_URL}/agents/launch", headers=launch_headers, json=launch_body)
+      launch_resp.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+      if exc.response.status_code == 401:
+        error_detail = exc.response.text or "Unauthorized"
+        logger.error("PhantomBuster API authentication failed (401). Check your PHANTOMBUSTER_API_KEY and PHANTOMBUSTER_SEARCH_AGENT_ID. Response: %s", error_detail)
+        raise HTTPException(
+          status_code=401,
+          detail=f"PhantomBuster API authentication failed. Please check your PHANTOMBUSTER_API_KEY and PHANTOMBUSTER_SEARCH_AGENT_ID in your .env file. Error: {error_detail}"
+        ) from exc
+      else:
+        logger.error("PhantomBuster API error: %s", exc.response.text)
+        raise HTTPException(
+          status_code=exc.response.status_code,
+          detail=f"PhantomBuster API error: {exc.response.text}"
+        ) from exc
+    except httpx.RequestError as exc:
+      logger.error("PhantomBuster network error: %s", exc)
+      raise HTTPException(status_code=502, detail=f"PhantomBuster network error: {exc}") from exc
+
+    launch_data = launch_resp.json()
+    container_id = str(launch_data.get("containerId") or launch_data.get("data", {}).get("id") or "")
+    if not container_id:
+      logger.error("PhantomBuster launch response missing containerId: %s", launch_data)
+      raise HTTPException(status_code=502, detail="PhantomBuster launch did not return a container identifier.")
+
+    logger.info("Launched PhantomBuster agent %s (container %s) for query '%s'", agent_id, container_id, trimmed_search_query)
+
+    elapsed = 0
+    container_payload: dict[str, Any] | None = None
+    while elapsed <= PHANTOMBUSTER_MAX_WAIT_SECONDS:
+      container_resp = await client.get(
+        f"{PHANTOMBUSTER_BASE_URL}/containers/fetch",
+        headers=launch_headers,
+        params={"id": container_id}
+      )
+      container_resp.raise_for_status()
+      container_payload = container_resp.json()
+      container = container_payload.get("container") or container_payload
+      container_status = container.get("status")
+      logger.debug("PhantomBuster container %s status=%s", container_id, container_status)
+
+      if container_status in {"finished", "failed", "aborted", "stopped"}:
+        break
+
+      await asyncio.sleep(PHANTOMBUSTER_POLL_INTERVAL_SECONDS)
+      elapsed += PHANTOMBUSTER_POLL_INTERVAL_SECONDS
+
+    if not container_payload or container_status != "finished":
+      logger.error("PhantomBuster container %s ended with status %s", container_id, container_status)
+      raise HTTPException(status_code=502, detail=f"PhantomBuster run ended with status: {container_status}")
+
+    fetch_resp = await client.get(
+      f"{PHANTOMBUSTER_BASE_URL}/agents/fetch-output",
+      headers=fetch_headers,
+      params={"id": agent_id}
+    )
+    fetch_resp.raise_for_status()
+    fetch_payload = fetch_resp.json()
+
+    output_value = fetch_payload.get("output")
+    if output_value is None and isinstance(fetch_payload.get("container"), dict):
+      output_value = fetch_payload["container"].get("output")
+
+    if isinstance(output_value, str):
+      output_text = output_value
+    else:
+      output_text = json.dumps(output_value or "", ensure_ascii=False)
+
+    match = re.search(r"https://\S+?\.csv", output_text)
+    if match:
+      csv_url = match.group(0).rstrip(")\"'")
+
+    if csv_url:
+      csv_response = await client.get(csv_url)
+      csv_response.raise_for_status()
+      csv_file = io.StringIO(csv_response.text)
+      reader = csv.DictReader(csv_file)
+      raw_csv_rows = list(reader)
+      logger.info("Fetched %d rows from PhantomBuster CSV %s for query '%s'", len(raw_csv_rows), csv_url, trimmed_search_query)
+      print(f"[phantombuster-test] query={trimmed_search_query} csv_url={csv_url} rows={len(raw_csv_rows)}")
+
+      csv_rows = _filter_rows_by_query(raw_csv_rows, store_query_label)
+      logger.info("After query filter: %d rows remain for query '%s'", len(csv_rows), store_query_label)
+
+      if csv_rows:
+        first_row = csv_rows[0]
+        print(f"[phantombuster-test] first_row={first_row}")
+
+  filtered_rows = _filter_rows_by_gender(list(csv_rows), gender)
+  filtered_first_row = filtered_rows[0] if filtered_rows else None
+
+  total_available_rows = len(raw_csv_rows) if raw_csv_rows else len(csv_rows)
+
+  stored_payload: dict[str, Any] = {
+    "query": store_query_value,
+    "query_label": store_query_label,
+    "canonical_query_label": store_query_label,
+    "requested_query": (requested_query or search_query).strip().lower(),
+    "requested_query_label": (requested_query or search_query).strip(),
+    "canonical_query": store_query_value,
+    "query_terms": sorted(_derive_query_terms(store_query_label)),
+    "search_query": trimmed_search_query,
+    "agent_id": agent_id,
+    "container_id": container_id,
+    "status": container_status or fetch_payload.get("status"),
+    "output": output_text,
+    "csv_url": csv_url,
+    "csv_row_count": len(csv_rows),
+    "total_csv_row_count": total_available_rows,
+    "gender_filtered_csv_row_count": len(filtered_rows),
+    "csv_data": csv_rows,
+    "first_row": first_row
+  }
+
+  insert_result = await mongo_collection.insert_one(
+    {
+      "query": store_query_value,
+      "response": stored_payload,
+      "created_at": datetime.utcnow()
+    }
+  )
+
+  response_payload = dict(stored_payload)
+  response_payload["csv_data"] = filtered_rows
+  response_payload["csv_row_count"] = len(filtered_rows)
+  response_payload["first_row"] = filtered_first_row
+  response_payload["filter_gender"] = gender
+  response_payload["total_csv_row_count"] = total_available_rows
+  response_payload["requested_query"] = (requested_query or search_query).strip()
+  response_payload["canonical_query"] = store_query_label
+  response_payload["query_terms"] = sorted(_derive_query_terms(store_query_label))
+  response_payload["mongo_document_id"] = str(insert_result.inserted_id)
+  response_payload["cached"] = False
+
+  return response_payload
 
 
 @asynccontextmanager
@@ -413,15 +699,32 @@ async def phantombuster_search_cache(
   if mongo_collection is None:
     raise HTTPException(status_code=500, detail="MongoDB is not configured.")
 
+  canonical_query, canonical_lower, candidate_forms = _resolve_query_forms(trimmed_query)
+  mongo_query_candidates = {
+    form.strip()
+    for form in candidate_forms
+    if isinstance(form, str) and form.strip()
+  }
+  mongo_query_candidates.update(
+    {form.lower() for form in mongo_query_candidates if isinstance(form, str)}
+  )
+
   cached_document = await mongo_collection.find_one(
-    {"query": trimmed_query, "response": {"$exists": True}},
+    {"query": {"$in": list(mongo_query_candidates)}, "response": {"$exists": True}},
     sort=[("created_at", -1)]
   )
   if cached_document and isinstance(cached_document.get("response"), dict):
     stored_response = dict(cached_document["response"])
     stored_rows = stored_response.get("csv_data") or []
+    stored_query_label = (
+      stored_response.get("query_label")
+      or stored_response.get("canonical_query_label")
+      or stored_response.get("query")
+      or canonical_query
+    )
+
     # Apply query filter to cached results as well (in case old data doesn't have filter applied)
-    filtered_rows = _filter_rows_by_query(list(stored_rows), trimmed_query)
+    filtered_rows = _filter_rows_by_query(list(stored_rows), stored_query_label)
     filtered_rows = _filter_rows_by_gender(filtered_rows, gender)
     filtered_first_row = filtered_rows[0] if filtered_rows else None
 
@@ -430,181 +733,52 @@ async def phantombuster_search_cache(
     response_payload["csv_row_count"] = len(filtered_rows)
     response_payload["first_row"] = filtered_first_row
     response_payload["filter_gender"] = gender
-    response_payload["total_csv_row_count"] = len(stored_rows)
+    response_payload["total_csv_row_count"] = stored_response.get("total_csv_row_count", len(stored_rows))
     response_payload["mongo_document_id"] = str(cached_document["_id"])
     response_payload["cached"] = True
+    response_payload["requested_query"] = trimmed_query
+    response_payload["canonical_query"] = stored_query_label
+    response_payload["query_terms"] = sorted(_derive_query_terms(stored_query_label))
+    response_payload["query_aliases"] = sorted(mongo_query_candidates)
     return response_payload
 
-  api_key = os.getenv("PHANTOMBUSTER_API_KEY")
-  agent_id = os.getenv("PHANTOMBUSTER_SEARCH_AGENT_ID")
-  session_cookie = os.getenv("PHANTOMBUSTER_SESSION_COOKIE")
-
-  if not api_key or not agent_id:
-    raise HTTPException(
-      status_code=500,
-      detail="PhantomBuster credentials are not configured. Please set PHANTOMBUSTER_API_KEY and PHANTOMBUSTER_SEARCH_AGENT_ID in your .env file. See PHANTOMBUSTER_QUICK_START.md for instructions."
-    )
-  
-  # Validate API key format (should be a non-empty string)
-  if not isinstance(api_key, str) or len(api_key.strip()) < 10:
-    logger.warning("PHANTOMBUSTER_API_KEY appears to be invalid (too short or empty)")
-
-  if not session_cookie:
-    raise HTTPException(status_code=500, detail="PhantomBuster session cookie is not configured (missing PHANTOMBUSTER_SESSION_COOKIE).")
-
   trimmed_limit = min(max(limit, 1), 50)
-  dynamic_search_url = f"https://www.linkedin.com/search/results/all/?keywords={quote_plus(trimmed_query)}&origin=GLOBAL_SEARCH_HEADER"
-  search_request = PhantomSearchRequest(
-    query=trimmed_query,
+  response_payload = await _launch_phantombuster_query(
+    canonical_query,
     limit=trimmed_limit,
-    search_url=dynamic_search_url,
-    results_per_launch=trimmed_limit,
-    results_per_search=trimmed_limit
+    gender=gender,
+    store_query=canonical_query,
+    requested_query=trimmed_query
   )
 
-  launch_headers = {
-    "X-Phantombuster-Key-1": api_key,
-    "Content-Type": "application/json"
-  }
-  fetch_headers = {
-    "X-Phantombuster-Key": api_key,
-    "accept": "application/json"
-  }
+  response_payload["query_aliases"] = sorted(mongo_query_candidates)
+  return response_payload
 
-  container_id: str | None = None
-  container_status: str | None = None
-  fetch_payload: dict[str, Any] = {}
 
-  async with httpx.AsyncClient(timeout=30.0) as client:
-    launch_body = {
-      "id": agent_id,
-      "argument": _build_search_argument(search_request, session_cookie)
-    }
-    try:
-      launch_resp = await client.post(f"{PHANTOMBUSTER_BASE_URL}/agents/launch", headers=launch_headers, json=launch_body)
-      launch_resp.raise_for_status()
-    except httpx.HTTPStatusError as exc:
-      if exc.response.status_code == 401:
-        error_detail = exc.response.text or "Unauthorized"
-        logger.error("PhantomBuster API authentication failed (401). Check your PHANTOMBUSTER_API_KEY and PHANTOMBUSTER_SEARCH_AGENT_ID. Response: %s", error_detail)
-        raise HTTPException(
-          status_code=401,
-          detail=f"PhantomBuster API authentication failed. Please check your PHANTOMBUSTER_API_KEY and PHANTOMBUSTER_SEARCH_AGENT_ID in your .env file. Error: {error_detail}"
-        ) from exc
-      else:
-        logger.error("PhantomBuster API error: %s", exc.response.text)
-        raise HTTPException(
-          status_code=exc.response.status_code,
-          detail=f"PhantomBuster API error: {exc.response.text}"
-        ) from exc
-    except httpx.RequestError as exc:
-      logger.error("PhantomBuster network error: %s", exc)
-      raise HTTPException(status_code=502, detail=f"PhantomBuster network error: {exc}") from exc
-    
-    launch_data = launch_resp.json()
-    container_id = str(launch_data.get("containerId") or launch_data.get("data", {}).get("id") or "")
-    if not container_id:
-      logger.error("PhantomBuster launch response missing containerId: %s", launch_data)
-      raise HTTPException(status_code=502, detail="PhantomBuster launch did not return a container identifier.")
+@app.post("/phantombuster/search-abbreviation")
+async def phantombuster_search_abbreviation(payload: AbbreviationSearchRequest) -> dict[str, Any]:
+  abbreviation = payload.abbreviation.strip().lower()
+  if not abbreviation:
+    raise HTTPException(status_code=400, detail="Abbreviation must be a non-empty string.")
 
-    logger.info("Launched PhantomBuster agent %s (container %s) for query '%s'", agent_id, container_id, trimmed_query)
+  full_query = ABBREVIATION_QUERY_MAP.get(abbreviation)
+  if not full_query:
+    raise HTTPException(status_code=404, detail=f"No query mapping found for abbreviation '{abbreviation}'.")
 
-    elapsed = 0
-    container_payload: dict[str, Any] | None = None
-    while elapsed <= PHANTOMBUSTER_MAX_WAIT_SECONDS:
-      container_resp = await client.get(
-        f"{PHANTOMBUSTER_BASE_URL}/containers/fetch",
-        headers=launch_headers,
-        params={"id": container_id}
-      )
-      container_resp.raise_for_status()
-      container_payload = container_resp.json()
-      container = container_payload.get("container") or container_payload
-      container_status = container.get("status")
-      logger.debug("PhantomBuster container %s status=%s", container_id, container_status)
+  expanded_query = full_query.strip()
+  limit_value = payload.limit or 80
 
-      if container_status in {"finished", "failed", "aborted", "stopped"}:
-        break
-
-      await asyncio.sleep(PHANTOMBUSTER_POLL_INTERVAL_SECONDS)
-      elapsed += PHANTOMBUSTER_POLL_INTERVAL_SECONDS
-
-    if not container_payload or container_status != "finished":
-      logger.error("PhantomBuster container %s ended with status %s", container_id, container_status)
-      raise HTTPException(status_code=502, detail=f"PhantomBuster run ended with status: {container_status}")
-
-    fetch_resp = await client.get(
-      f"{PHANTOMBUSTER_BASE_URL}/agents/fetch-output",
-      headers=fetch_headers,
-      params={"id": agent_id}
-    )
-    fetch_resp.raise_for_status()
-    fetch_payload = fetch_resp.json()
-
-    output_value = fetch_payload.get("output")
-    if output_value is None and isinstance(fetch_payload.get("container"), dict):
-      output_value = fetch_payload["container"].get("output")
-
-    if isinstance(output_value, str):
-      output_text = output_value
-    else:
-      output_text = json.dumps(output_value or "", ensure_ascii=False)
-
-    csv_url: str | None = None
-    match = re.search(r"https://\S+?\.csv", output_text)
-    if match:
-      csv_url = match.group(0).rstrip(")\"'")
-
-    csv_rows: list[dict[str, Any]] = []
-    first_row: dict[str, Any] | None = None
-    if csv_url:
-      csv_response = await client.get(csv_url)
-      csv_response.raise_for_status()
-      csv_file = io.StringIO(csv_response.text)
-      reader = csv.DictReader(csv_file)
-      csv_rows = list(reader)
-      logger.info("Fetched %d rows from PhantomBuster CSV %s for query '%s'", len(csv_rows), csv_url, trimmed_query)
-      print(f"[phantombuster-test] query={trimmed_query} csv_url={csv_url} rows={len(csv_rows)}")
-      
-      # Filter rows by query before saving
-      csv_rows = _filter_rows_by_query(csv_rows, trimmed_query)
-      logger.info("After query filter: %d rows remain for query '%s'", len(csv_rows), trimmed_query)
-      
-      if csv_rows:
-        first_row = csv_rows[0]
-        print(f"[phantombuster-test] first_row={first_row}")
-
-  stored_payload: dict[str, Any] = {
-    "query": trimmed_query,
-    "agent_id": agent_id,
-    "container_id": container_id,
-    "status": container_status or fetch_payload.get("status"),
-    "output": output_text,
-    "csv_url": csv_url,
-    "csv_row_count": len(csv_rows),
-    "csv_data": csv_rows,
-    "first_row": first_row
-  }
-
-  insert_result = await mongo_collection.insert_one(
-    {
-      "query": trimmed_query,
-      "response": stored_payload,
-      "created_at": datetime.utcnow()
-    }
+  response_payload = await _launch_phantombuster_query(
+    expanded_query,
+    limit=limit_value,
+    gender=payload.gender,
+    store_query=expanded_query,
+    requested_query=abbreviation
   )
 
-  filtered_rows = _filter_rows_by_gender(list(csv_rows), gender)
-  filtered_first_row = filtered_rows[0] if filtered_rows else None
-
-  response_payload = dict(stored_payload)
-  response_payload["csv_data"] = filtered_rows
-  response_payload["csv_row_count"] = len(filtered_rows)
-  response_payload["first_row"] = filtered_first_row
-  response_payload["filter_gender"] = gender
-  response_payload["total_csv_row_count"] = len(csv_rows)
-  response_payload["mongo_document_id"] = str(insert_result.inserted_id)
-  response_payload["cached"] = False
+  response_payload["abbreviation"] = abbreviation
+  _, _, alias_forms = _resolve_query_forms(abbreviation)
+  response_payload["query_aliases"] = sorted(alias_forms)
 
   return response_payload
 
