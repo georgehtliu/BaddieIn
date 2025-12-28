@@ -230,14 +230,14 @@ const ProfileCard = () => {
                   {/* Avatar */}
                   <div className="relative w-52 h-52 rounded-full overflow-hidden shadow-2xl border-4 border-white/30">
                     <img 
-                      src="/camille-yang.jpeg"
-                      alt="camille yang"
+                      src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Margot_Robbie_%28cropped%29.jpg/800px-Margot_Robbie_%28cropped%29.jpg"
+                      alt="Margot Robbie"
                       className="w-full h-full object-cover"
                       onError={(e) => {
                         // Fallback to initials if image fails to load
                         e.target.style.display = 'none';
                         e.target.parentElement.classList.add('bg-gradient-to-br', 'from-pink-500', 'via-purple-500','to-blue-500', 'flex', 'items-center', 'justify-center');
-                        e.target.parentElement.innerHTML = '<span class="text-white text-7xl font-bold">GL</span>';
+                        e.target.parentElement.innerHTML = '<span class="text-white text-7xl font-bold">MR</span>';
                       }}
                     />
                   </div>
@@ -262,7 +262,7 @@ const ProfileCard = () => {
             {/* Profile Info */}
             <div className="flex-1 flex flex-col items-center justify-start p-8 pt-8 space-y-3 text-center">
               <h3 className="text-4xl font-bold text-white tracking-tight">
-                Camille Yang
+                Margot Robbie
               </h3>
               
               <div className="space-y-2">
