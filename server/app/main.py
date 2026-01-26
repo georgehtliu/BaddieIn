@@ -20,6 +20,7 @@ from gender_guesser import detector as gender_detector
 import google.generativeai as genai
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
+import certifi
 
 # Load environment variables
 load_dotenv()
@@ -57,6 +58,8 @@ QUERY_STOP_WORDS = {
 }
 # Configure Gemini API
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# Default to Gemini 2.0 Flash-Lite: 30 RPM, 1,000,000 TPM (best token limit)
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-lite")
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 else:
@@ -648,14 +651,27 @@ async def _launch_phantombuster_query(
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
   global mongo_client, mongo_collection
-  mongo_uri = os.getenv("MONGODB_URI") or "mongodb+srv://gooner123:gooner123@cluster0.9xkp2kk.mongodb.net/?appName=Cluster0"
+  mongo_uri = os.getenv("MONGODB_URI")
+  if not mongo_uri:
+    logger.error("MONGODB_URI environment variable is not set. Please set it in your .env file.")
+    raise RuntimeError("MONGODB_URI environment variable is required but not set. Please configure it in your .env file.")
+  
   mongo_db_name = os.getenv("MONGODB_DB", "linkedin_baddie_finder")
   mongo_collection_name = os.getenv("MONGODB_COLLECTION", "search_results")
-  mongo_client = AsyncIOMotorClient(mongo_uri)
+  
+  # Use certifi CA bundle to avoid TLS handshake issues on some macOS/Python builds
+  mongo_client = AsyncIOMotorClient(
+    mongo_uri,
+    tls=True,
+    tlsCAFile=certifi.where(),
+    serverSelectionTimeoutMS=30000
+  )
   mongo_collection = mongo_client[mongo_db_name][mongo_collection_name]
   try:
     await mongo_client.admin.command("ping")
-    logger.info("Connected to MongoDB cluster '%s' (database=%s, collection=%s)", mongo_uri, mongo_db_name, mongo_collection_name)
+    # Log connection info without exposing credentials
+    uri_display = mongo_uri.split("@")[-1] if "@" in mongo_uri else mongo_uri.split("//")[-1] if "//" in mongo_uri else "***"
+    logger.info("Connected to MongoDB (database=%s, collection=%s, uri=%s)", mongo_db_name, mongo_collection_name, uri_display)
   except Exception as exc:
     logger.error("Failed to connect to MongoDB: %s", exc)
     raise RuntimeError("Unable to connect to MongoDB") from exc
@@ -1158,8 +1174,44 @@ STARTERS:
 Keep it engaging, dating-app appropriate, and positive."""
 
   try:
-    model = genai.GenerativeModel('gemini-2.0-flash-exp')
-    response = model.generate_content(prompt)
+    if not GEMINI_MODEL:
+      raise HTTPException(status_code=503, detail="AI service not configured")
+    
+    # Try the configured model, with fallbacks (prioritizing high TPM models)
+    model = None
+    model_names = [
+      GEMINI_MODEL,  # User's preferred model (default: gemini-2.0-flash-lite)
+      "gemini-2.0-flash-lite",  # 30 RPM, 1,000,000 TPM
+      "gemini-2.0-flash",  # 15 RPM, 1,000,000 TPM
+      "gemini-2.5-flash-lite",  # 15 RPM, 250,000 TPM
+      "gemini-2.5-flash",  # 10 RPM, 250,000 TPM
+      "gemini-1.5-pro",  # Fallback
+      "gemini-pro"  # Last resort
+    ]
+    last_error = None
+    
+    for model_name in model_names:
+      try:
+        model = genai.GenerativeModel(model_name)
+        # Try to generate content to verify model works
+        response = model.generate_content(prompt)
+        # If we get here, the model works
+        break
+      except Exception as model_error:
+        error_str = str(model_error).lower()
+        if "404" in error_str or "not found" in error_str:
+          # Model not found, try next one
+          last_error = model_error
+          continue
+        else:
+          # Different error, re-raise it
+          raise
+    
+    if model is None or 'response' not in locals():
+      error_msg = f"No available Gemini model found. Tried: {', '.join(model_names)}"
+      if last_error:
+        error_msg += f" Last error: {str(last_error)[:200]}"
+      raise HTTPException(status_code=503, detail=error_msg)
     text = response.text
 
     # Parse response
@@ -1257,8 +1309,44 @@ Requirements:
 Write ONLY the message, no explanations or meta-commentary."""
 
   try:
-    model = genai.GenerativeModel('gemini-2.0-flash-exp')
-    response = model.generate_content(prompt)
+    if not GEMINI_MODEL:
+      raise HTTPException(status_code=503, detail="AI service not configured")
+    
+    # Try the configured model, with fallbacks (prioritizing high TPM models)
+    model = None
+    model_names = [
+      GEMINI_MODEL,  # User's preferred model (default: gemini-2.0-flash-lite)
+      "gemini-2.0-flash-lite",  # 30 RPM, 1,000,000 TPM
+      "gemini-2.0-flash",  # 15 RPM, 1,000,000 TPM
+      "gemini-2.5-flash-lite",  # 15 RPM, 250,000 TPM
+      "gemini-2.5-flash",  # 10 RPM, 250,000 TPM
+      "gemini-1.5-pro",  # Fallback
+      "gemini-pro"  # Last resort
+    ]
+    last_error = None
+    
+    for model_name in model_names:
+      try:
+        model = genai.GenerativeModel(model_name)
+        # Try to generate content to verify model works
+        response = model.generate_content(prompt)
+        # If we get here, the model works
+        break
+      except Exception as model_error:
+        error_str = str(model_error).lower()
+        if "404" in error_str or "not found" in error_str:
+          # Model not found, try next one
+          last_error = model_error
+          continue
+        else:
+          # Different error, re-raise it
+          raise
+    
+    if model is None or 'response' not in locals():
+      error_msg = f"No available Gemini model found. Tried: {', '.join(model_names)}"
+      if last_error:
+        error_msg += f" Last error: {str(last_error)[:200]}"
+      raise HTTPException(status_code=503, detail=error_msg)
     message = response.text.strip()
 
     # Clean up any markdown formatting or quotes
@@ -1302,8 +1390,44 @@ Generate 5 observations starting with "Probably..." or "Definitely...". Each sho
 Make them specific to this person's profile when possible, but keep them lighthearted and fun."""
 
   try:
-    model = genai.GenerativeModel('gemini-2.0-flash-exp')
-    response = model.generate_content(prompt)
+    if not GEMINI_MODEL:
+      raise HTTPException(status_code=503, detail="AI service not configured")
+    
+    # Try the configured model, with fallbacks (prioritizing high TPM models)
+    model = None
+    model_names = [
+      GEMINI_MODEL,  # User's preferred model (default: gemini-2.0-flash-lite)
+      "gemini-2.0-flash-lite",  # 30 RPM, 1,000,000 TPM
+      "gemini-2.0-flash",  # 15 RPM, 1,000,000 TPM
+      "gemini-2.5-flash-lite",  # 15 RPM, 250,000 TPM
+      "gemini-2.5-flash",  # 10 RPM, 250,000 TPM
+      "gemini-1.5-pro",  # Fallback
+      "gemini-pro"  # Last resort
+    ]
+    last_error = None
+    
+    for model_name in model_names:
+      try:
+        model = genai.GenerativeModel(model_name)
+        # Try to generate content to verify model works
+        response = model.generate_content(prompt)
+        # If we get here, the model works
+        break
+      except Exception as model_error:
+        error_str = str(model_error).lower()
+        if "404" in error_str or "not found" in error_str:
+          # Model not found, try next one
+          last_error = model_error
+          continue
+        else:
+          # Different error, re-raise it
+          raise
+    
+    if model is None or 'response' not in locals():
+      error_msg = f"No available Gemini model found. Tried: {', '.join(model_names)}"
+      if last_error:
+        error_msg += f" Last error: {str(last_error)[:200]}"
+      raise HTTPException(status_code=503, detail=error_msg)
     text = response.text.strip()
 
     # Parse lines starting with "Probably" or "Definitely"

@@ -7,4 +7,5 @@ gender-guesser==0.4.0
 motor==3.4.0
 pymongo==4.5.0
 google-generativeai==0.8.3
+certifi==2024.8.30
 
