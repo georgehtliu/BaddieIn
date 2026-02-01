@@ -22,8 +22,10 @@ from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 import certifi
 
-# Load environment variables
-load_dotenv()
+# Load environment variables: try app dir first (server/app/.env), then cwd (server/.env)
+_load_env_dir = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(_load_env_dir, ".env"))
+load_dotenv()  # cwd (e.g. server/.env when run from server/)
 
 HUGGINGFACE_ENDPOINT = "https://thwanx-beautyrate.hf.space/api/predict"
 DEFAULT_FN_INDEX = 0
@@ -651,10 +653,10 @@ async def _launch_phantombuster_query(
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
   global mongo_client, mongo_collection
-  mongo_uri = os.getenv("MONGODB_URI")
+  mongo_uri = os.getenv("MONGODB_URI") or os.getenv("MONGO_URI")
   if not mongo_uri:
-    logger.error("MONGODB_URI environment variable is not set. Please set it in your .env file.")
-    raise RuntimeError("MONGODB_URI environment variable is required but not set. Please configure it in your .env file.")
+    logger.error("MONGODB_URI (or MONGO_URI) environment variable is not set. Please set it in your .env file.")
+    raise RuntimeError("MONGODB_URI or MONGO_URI is required but not set. Please configure it in your .env file.")
   
   mongo_db_name = os.getenv("MONGODB_DB", "linkedin_baddie_finder")
   mongo_collection_name = os.getenv("MONGODB_COLLECTION", "search_results")
